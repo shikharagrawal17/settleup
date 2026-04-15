@@ -47,9 +47,13 @@ Map<String, int> buildPercentageShareMap({
     assigned += share;
   }
 
-  // Fix rounding error on last member.
-  if (members.isNotEmpty && assigned != total) {
-    result[members.last.id] = (result[members.last.id] ?? 0) + (total - assigned);
+  // Only fix rounding error if the sum of percentages is very close to 100.
+  // This prevents the 'last member gets everything' bug when entry is incomplete.
+  final totalPct = percentages.values.fold<double>(0.0, (sum, v) => sum + v);
+  if (members.isNotEmpty && (totalPct - 100.0).abs() < 0.05) {
+    if (assigned != total) {
+      result[members.last.id] = (result[members.last.id] ?? 0) + (total - assigned);
+    }
   }
 
   return result;
@@ -107,9 +111,13 @@ Map<String, int> computeMemberBalances({
   }
 
   // Settlements: payer (from) balance goes up, payee (to) balance goes down.
+  // CRITICAL: Only count CONFIRMED settlements. Pending/Disputed payments 
+  // do not yet affect the actual debt balance.
   for (final s in settlements) {
-    balances[s.fromMemberId] = (balances[s.fromMemberId] ?? 0) + s.amount;
-    balances[s.toMemberId] = (balances[s.toMemberId] ?? 0) - s.amount;
+    if (s.status == SettlementStatus.confirmed) {
+      balances[s.fromMemberId] = (balances[s.fromMemberId] ?? 0) + s.amount;
+      balances[s.toMemberId] = (balances[s.toMemberId] ?? 0) - s.amount;
+    }
   }
 
   return balances;

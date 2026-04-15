@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/expense.dart';
 import '../models/group_member.dart';
@@ -13,17 +14,20 @@ import '../utils/settlement_helper.dart';
 import '../widgets/app_shell_widgets.dart';
 import 'contact_picker_screen.dart';
 
+
 class EditGroupScreen extends StatefulWidget {
   const EditGroupScreen({
     super.key,
     required this.group,
     required this.expenses,
     required this.settlements,
+    required this.currentUserId,
   });
 
   final SettlementGroup group;
   final List<Expense> expenses;
   final List<SettlementRecord> settlements;
+  final String currentUserId;
 
   @override
   State<EditGroupScreen> createState() => _EditGroupScreenState();
@@ -59,8 +63,8 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
   }
 
   bool _canRemove(String memberId) {
-    final member = widget.group.members.where((m) => m.id == memberId).firstOrNull;
-    if (member != null && member.isSelf) return false;
+    // Democracy: anyone can remove (Fix 1 updated).
+    // Balance check still applies (Fix 2).
     return (_balances[memberId] ?? 0) == 0;
   }
 
@@ -169,12 +173,63 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
     if (newName != widget.group.name) {
       await appState.updateGroupName(groupId: widget.group.id, name: newName);
     }
-    await appState.updateGroupMembers(groupId: widget.group.id, members: newMembers);
+
+    String? newCreatorId;
+    final bool creatorLeft = !newMembers.any((m) => m.id == widget.group.createdBy);
+    
+    if (creatorLeft && newMembers.isNotEmpty) {
+      // Automatic ownership transfer to the first available member
+      newCreatorId = newMembers.first.id;
+    }
+
+    await appState.updateGroupMembers(
+      groupId: widget.group.id, 
+      members: newMembers,
+      newCreatorId: newCreatorId,
+    );
     if (mounted) Navigator.of(context).pop(true);
+  }
+
+  void _exportCsv() {
+    final buffer = StringBuffer();
+    final members = widget.group.members;
+    
+    // Header
+    final header = [
+      'Date',
+      'Description',
+      'Category',
+      'Payer',
+      'Total Amount',
+      ...members.map((m) => '${m.name} (Share)'),
+    ];
+    buffer.writeln(header.map((v) => '"$v"').join(','));
+
+    for (final e in widget.expenses) {
+      final payer = members.firstWhere(
+        (m) => m.id == e.payerId, 
+        orElse: () => GroupMember(id: '', name: 'Unknown'),
+      );
+      final date = "${e.createdAt.day}/${e.createdAt.month}/${e.createdAt.year}";
+      
+      final row = [
+        date,
+        e.description,
+        e.resolvedCategory.label,
+        payer.name,
+        e.amount.toString(),
+        ...members.map((m) => (e.shares[m.id] ?? 0).toString()),
+      ];
+      buffer.writeln(row.map((v) => '"$v"').join(','));
+    }
+
+    Share.share(buffer.toString(), subject: '${widget.group.name} Expenses Report');
   }
 
   @override
   Widget build(BuildContext context) {
+    final isOwner = widget.group.createdBy == widget.currentUserId;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Edit Group')),
       body: AppBackdrop(
@@ -195,7 +250,11 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _nameController,
-                          decoration: const InputDecoration(labelText: 'Group Name'),
+                          enabled: true, // Democratic renaming
+                          decoration: const InputDecoration(
+                            labelText: 'Group Name',
+                            suffixIcon: Icon(Icons.edit_outlined, size: 16),
+                          ),
                           validator: (v) => (v ?? '').trim().isEmpty ? 'Enter a name' : null,
                         ),
                         const SizedBox(height: 16),
@@ -255,13 +314,22 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                     }).toList(),
                   ),
                   const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: _save,
-                      child: const Text('Save Changes'),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _save,
+                        child: const Text('Save Changes'),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _exportCsv,
+                        icon: const Icon(Icons.file_download_outlined),
+                        label: const Text('Export Expenses (CSV)'),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -426,10 +494,14 @@ class _MemberDraft {
   }
 
   GroupMember toMember() {
+    final rawPhone = phoneController.text.trim();
+    // If we have a registered profile, use its real UID.
+    final effectiveId = registeredProfile?.uid ?? id;
+
     return GroupMember(
-      id: id,
+      id: effectiveId,
       name: nameController.text.trim(),
-      phoneNumber: phoneController.text.trim().isEmpty ? null : phoneController.text.trim(),
+      phoneNumber: rawPhone.isEmpty ? null : AppState.normalisePhone(rawPhone),
       upiId: upiController.text.trim().isEmpty ? null : upiController.text.trim(),
       isSelf: isSelf,
     );
@@ -519,7 +591,8 @@ class _MemberSheetState extends State<_MemberSheet> {
         _profile = profile;
         if (profile != null) {
           if (_name.text.trim().isEmpty) _name.text = profile.displayName;
-          if (profile.upiId.isNotEmpty && _upi.text.trim().isEmpty) {
+          // Background auto-fill from discovery, but no longer editable by creator
+          if (profile.upiId.isNotEmpty) {
             _upi.text = profile.upiId;
           }
         }
@@ -568,15 +641,6 @@ class _MemberSheetState extends State<_MemberSheet> {
                 decoration: const InputDecoration(
                   labelText: 'Phone Number or Email',
                   prefixIcon: Icon(Icons.contact_mail_outlined, size: 20),
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: _upi,
-                decoration: const InputDecoration(
-                  labelText: 'UPI ID (optional)',
-                  prefixIcon: Icon(Icons.account_balance_wallet_outlined, size: 20),
                   isDense: true,
                 ),
               ),

@@ -10,6 +10,15 @@
 
 ## ✨ Key Features
 
+### 🔐 Dual-Authentication
+*   **Google One-Tap**: Instant sign-in with your Google account.
+*   **Phone OTP Login**: Use your mobile number with verified SMS codes for a more accessible onboarding experience.
+
+### 🧠 Intelligence & Optimization
+*   **Simplify Debts**: Uses a greedy algorithm to minimize the total number of transfers needed between group members.
+*   **Smart Analytics**: Real-time bar-chart visualization of spending by category (Food, Travel, Rent, etc.).
+*   **Auto-Categorization**: Intelligently detects and suggests categories based on expense descriptions.
+
 ### 🚀 Real-Time Shared Ledger
 Unlike local-only apps, SettleUp Lite uses a **Shared-to-Cloud architecture**. Every group exists as a synchronized document in Firestore.
 *   **Instant Sync**: Any expense added is instantly visible to all group members.
@@ -17,23 +26,21 @@ Unlike local-only apps, SettleUp Lite uses a **Shared-to-Cloud architecture**. E
 
 ### 💳 Deep UPI Integration
 Designed for the Indian market, making settlements friction-free.
-*   **One-Tap "Pay Now"**: Automatically generates a UPI payment link (`upi://pay`) and launches your preferred payment app (GPay, PhonePe, Paytm).
-*   **Auto-Record Persistence**: Optionally re-confirm and auto-record a settlement once the UPI intent is launched.
+*   **One-Tap "Pay Now"**: Automatically generates a UPI payment link and launches apps like GPay, PhonePe, or Paytm.
+*   **Two-Way Confirmation**: Payments are recorded as `pending` and only update balances once the receiver confirms receipt.
 *   **QR Generator**: Each transaction generates a dynamic QR code for easy scanning.
 
-### 📱 iOS & Android Ready
-Fully configured for a cross-platform experience:
-*   **iOS Support**: Pre-configured `LSApplicationQueriesSchemes` for deep-linking into UPI and WhatsApp apps on iPhone.
-*   **Android Optimized**: Smooth performance with Vulkan/Impeller rendering.
-
-### 🛡️ Smart Deletion & Recovery
-*   **Soft Delete**: Groups are "archived" rather than erased, allowing for a 4-second **Undo** window on the dashboard.
-*   **Group Accountability**: Any member can correct mistakes (delete events) with a confirmation safeguard to ensure ledger integrity.
+### 🛡️ Production Hardening (Phase 5)
+*   **Zero-Overflow Redesign**: Completely overhauled the Add/Edit Expense UI with a vertical-stack architecture, ensuring a perfect fit on narrow devices (down to 280px).
+*   **Stability & Reliability**: Resolved critical rendering crashes (infinite width constraints) and null-safe data handling for groups with evolving member lists.
+*   **Financial Precision**: Hardened split calculations for Percentage and Share modes with intelligent rounding to ensure group balances always sum correctly.
+*   **Profile Guard**: Mandatory onboarding for missing Firestore records to ensure data integrity.
+*   **Balance Locks**: Members cannot be removed from a group until their balance is ₹0.
+*   **Push Notifications**: Integrated FCM infrastructure for real-time activity and payment alerts.
 
 ---
 
 ## 🎨 Design Philosophy
-
 We believe financial tools shouldn't be boring. SettleUp Lite features:
 *   **Glassmorphism Effects**: Translucent surfaces and vibrant gradients.
 *   **MetricPills**: Compact, data-rich pills for total expenditures.
@@ -42,40 +49,27 @@ We believe financial tools shouldn't be boring. SettleUp Lite features:
 ---
 
 ## 🛠️ Tech Stack
-
 - **Framework**: [Flutter](https://flutter.dev)
-- **Database**: [Google Cloud Firestore](https://firebase.google.com/docs/firestore) (Shared-Ledger Model)
-- **Auth**: [Firebase Authentication](https://firebase.google.com/docs/auth)
-- **Styling**: Vanilla CSS-inspired Flutter UI with custom Design Tokens.
+- **Database**: Firestore (Shared-Ledger Model)
+- **Auth**: Firebase Authentication (Google + Phone OTP)
+- **Notifications**: Firebase Cloud Messaging
+- **Logic**: Provider-based State Management
 
 ---
 
 ## 🚀 Getting Started
 
-### Prerequisites
-- Flutter SDK (v3.0+)
-- Firebase Project setup
-
 ### Configuration
-1.  **Firebase**: Add your `google-services.json` (Android) and `GoogleService-Info.plist` (iOS) to the respective platform folders.
-2.  **UPI Setup**: Ensure every user adds their UPI ID in the **Edit Profile** section to enable the "Pay Now" feature for others.
+1.  **Firebase**: Add your `google-services.json` and `GoogleService-Info.plist`.
+2.  **Auth Setup**: Enable Google and Phone login providers in your Firebase Console.
+3.  **Cloud Functions**: Deploy the provided `FIREBASE_NOTIFICATIONS_LOGIC` to enable push alerts.
+4.  **UPI Setup**: Ensure every user adds their UPI ID in the profile section.
 
 ### Installation
 ```bash
-# Clone the repository
-git clone https://github.com/shikharagrawal17/settleup.git
-
-# Install dependencies
 flutter pub get
-
-# Run the app
 flutter run
 ```
-
----
-
-## 🤝 Contributing
-Mistakes happen—that's why anyone in the group can edit! If you find a bug or want to suggest a feature, feel free to open a PR.
 
 ---
 

@@ -385,8 +385,11 @@ class _MemberDraft {
 
   GroupMember toMember() {
     final rawPhone = phoneController.text.trim();
+    // If we have a registered profile, use its real UID as the member ID.
+    final effectiveId = registeredProfile?.uid ?? id;
+    
     return GroupMember(
-      id: id,
+      id: effectiveId,
       name: nameController.text.trim(),
       phoneNumber: rawPhone.isEmpty ? null : AppState.normalisePhone(rawPhone),
       upiId: upiController.text.trim().isEmpty ? null : upiController.text.trim(),
@@ -488,7 +491,8 @@ class _MemberSheetState extends State<_MemberSheet> {
         _profile = profile;
         if (profile != null) {
           if (_name.text.trim().isEmpty) _name.text = profile.displayName;
-          if (profile.upiId.isNotEmpty && _upi.text.trim().isEmpty) {
+          // Background auto-fill from discovery, but no longer editable by creator
+          if (profile.upiId.isNotEmpty) {
             _upi.text = profile.upiId;
           }
         }
@@ -537,15 +541,6 @@ class _MemberSheetState extends State<_MemberSheet> {
                 decoration: const InputDecoration(
                   labelText: 'Phone Number or Email',
                   prefixIcon: Icon(Icons.contact_mail_outlined, size: 20),
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: _upi,
-                decoration: const InputDecoration(
-                  labelText: 'UPI ID (optional)',
-                  prefixIcon: Icon(Icons.account_balance_wallet_outlined, size: 20),
                   isDense: true,
                 ),
               ),

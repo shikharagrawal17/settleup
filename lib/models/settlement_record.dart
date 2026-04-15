@@ -1,5 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+enum SettlementStatus {
+  pending,
+  confirmed,
+  disputed;
+
+  static SettlementStatus fromString(String? val) {
+    return SettlementStatus.values.firstWhere((e) => e.name == val, orElse: () => SettlementStatus.pending);
+  }
+}
+
 class SettlementRecord {
   SettlementRecord({
     required this.id,
@@ -9,6 +19,8 @@ class SettlementRecord {
     required this.toName,
     required this.amount,
     required this.settledAt,
+    required this.createdBy,
+    this.status = SettlementStatus.pending,
     this.note,
   });
 
@@ -19,7 +31,13 @@ class SettlementRecord {
   final String toName;
   final int amount;
   final DateTime settledAt;
+  final String createdBy;
+  final SettlementStatus status;
   final String? note;
+
+  bool get isConfirmed => status == SettlementStatus.confirmed;
+  bool get isPending => status == SettlementStatus.pending;
+  bool get isDisputed => status == SettlementStatus.disputed;
 
   Map<String, dynamic> toJson() {
     return {
@@ -29,6 +47,8 @@ class SettlementRecord {
       'toName': toName,
       'amount': amount,
       'settledAt': Timestamp.fromDate(settledAt),
+      'createdBy': createdBy,
+      'status': status.name,
       'note': note,
     };
   }
@@ -50,6 +70,8 @@ class SettlementRecord {
       toName: json['toName'] as String? ?? '',
       amount: (json['amount'] as num?)?.toInt() ?? 0,
       settledAt: settledAt,
+      createdBy: json['createdBy'] as String? ?? '',
+      status: SettlementStatus.fromString(json['status'] as String?),
       note: json['note'] as String?,
     );
   }

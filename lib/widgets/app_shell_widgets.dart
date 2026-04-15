@@ -67,10 +67,12 @@ class AppSurface extends StatelessWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(20),
+    this.borderRadius,
   });
 
   final Widget child;
   final EdgeInsets padding;
+  final BorderRadius? borderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +80,7 @@ class AppSurface extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: kSurface.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: borderRadius ?? BorderRadius.circular(28),
         border: Border.all(color: kSurfaceBorder),
         boxShadow: const [
           BoxShadow(

@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -16,6 +17,23 @@ import '../utils/settlement_helper.dart';
 import '../utils/upi_helper.dart';
 import '../widgets/app_shell_widgets.dart';
 import 'edit_group_screen.dart';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────
+
+String _getMonth(DateTime d) {
+  const m = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  return m[d.month - 1];
+}
+
+String _formatDate(DateTime d) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${d.day} ${months[d.month - 1]}';
+}
+
+String _formatMonthYear(DateTime d) {
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  return '${months[d.month - 1]} ${d.year}';
+}
 
 // ─── Main screen ─────────────────────────────────────────────────────────
 
@@ -35,6 +53,10 @@ class GroupSettlementScreen extends StatefulWidget {
 
 class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
   late SettlementGroup _group;
+  bool _simplifyDebts = true;
+  bool _isSearching = false;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -42,7 +64,20 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
     _group = widget.group;
   }
 
-  void _openSettleSheet(BuildContext context, AppState appState, List<SettlementTransaction> transactions) {
+
+  void _openAnalytics(AppState appState, List<Expense> expenses) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _AnalyticsSheet(
+        expenses: expenses,
+        group: _group,
+      ),
+    );
+  }
+
+  void _openSettleSheet(BuildContext context, AppState appState, List<SettlementTransaction> transactions, Map<String, GroupMember> memberMap) {
      showModalBottomSheet<void>(
        context: context,
        isScrollControlled: true,
@@ -65,6 +100,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
              const SizedBox(height: 12),
              Flexible(
                child: _SettleTab(
+                  memberMap: memberMap,
                  transactions: transactions,
                  currentUserId: _currentUserId,
                 onPay: (t) => _launchUpi(t, appState),
@@ -114,13 +150,20 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
   }
 
   List<GroupMember> _resolveAll(List<GroupMember> groupMembers, Map<String, UserProfile> liveProfiles) {
+    final appState = context.read<AppState>();
     return groupMembers.map((member) {
       final live = liveProfiles[member.id];
-      if (live == null) return member;
-      return member.copyWith(
-        name: live.displayName,
-        upiId: live.upiId,
-        phoneNumber: live.phoneNumber,
+      final baseMember = live == null 
+        ? member 
+        : member.copyWith(
+            name: live.displayName,
+            upiId: live.upiId,
+            phoneNumber: live.phoneNumber,
+          );
+      
+      return baseMember.copyWith(
+        name: appState.resolveMemberName(baseMember),
+        isSelf: baseMember.id == _currentUserId,
       );
     }).toList();
   }
@@ -199,6 +242,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
           amount: transaction.amount,
           note: 'Paid via UPI',
           settledAt: DateTime.now(),
+          createdBy: widget.profile.uid,
         );
 
         await appState.addSettlement(groupId: _group.id, record: record);
@@ -265,6 +309,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
           group: _group,
           expenses: expenses,
           settlements: settlements,
+          currentUserId: _currentUserId,
         ),
       ),
     );
@@ -276,220 +321,431 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
 
   // ─── Add expense bottom sheet ─────────────────────────────────────────
 
-  Future<void> _openAddExpense(AppState appState, List<GroupMember> resolvedMembers) async {
-    final descCtrl = TextEditingController();
-    final amountCtrl = TextEditingController();
+  Future<void> _openAddEditExpense(AppState appState, List<GroupMember> resolvedMembers, {Expense? initialExpense}) async {
+    final descCtrl = TextEditingController(text: initialExpense?.description ?? '');
+    final amountCtrl = TextEditingController(text: (initialExpense?.amount ?? 0) > 0 ? initialExpense!.amount.toString() : '');
     final formKey = GlobalKey<FormState>();
-    String payerId = resolvedMembers.first.id;
-    SplitMode splitMode = SplitMode.equal;
+    String payerId = initialExpense?.payerId ?? resolvedMembers.first.id;
+    SplitMode splitMode = initialExpense == null ? SplitMode.equal : SplitMode.exact;
+    
+    // Track who is included in this split
+    final includedIds = initialExpense == null 
+        ? resolvedMembers.map((m) => m.id).toSet() 
+        : initialExpense.shares.entries.where((e) => e.value > 0).map((e) => e.key).toSet();
+
     final shareControllers = {
-      for (final m in resolvedMembers) m.id: TextEditingController(),
+      for (final m in resolvedMembers) m.id: TextEditingController(
+        text: initialExpense?.shares[m.id]?.toString() ?? '',
+      ),
     };
     final pctControllers = {
-      for (final m in resolvedMembers) m.id: TextEditingController(text: ''),
+      for (final m in resolvedMembers) m.id: TextEditingController(
+        text: initialExpense != null && initialExpense.amount > 0 && (initialExpense.shares[m.id] ?? 0) > 0 
+          ? ((initialExpense.shares[m.id] ?? 0) / initialExpense.amount * 100).toStringAsFixed(0) 
+          : ''
+      ),
     };
     final multControllers = {
       for (final m in resolvedMembers) m.id: TextEditingController(text: '1'),
     };
+    ExpenseCategory selectedCategory = initialExpense?.category ?? ExpenseCategory.other;
+    bool isCategoryManual = initialExpense != null;
 
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
             void recomputeShares() {
               final total = int.tryParse(amountCtrl.text.trim()) ?? 0;
+              if (total == 0) return;
+
+              final includedMembers = resolvedMembers.where((m) => includedIds.contains(m.id)).toList();
 
               switch (splitMode) {
                 case SplitMode.equal:
-                  final shares = buildEqualShareMap(total: total, members: resolvedMembers);
-                  for (final e in shares.entries) {
-                    shareControllers[e.key]!.text = e.value.toString();
+                  final shares = buildEqualShareMap(total: total, members: includedMembers);
+                  for (final m in resolvedMembers) {
+                    shareControllers[m.id]!.text = (shares[m.id] ?? 0).toString();
                   }
                 case SplitMode.percentage:
                   final pcts = <String, double>{};
-                  for (final m in resolvedMembers) {
+                  for (final m in includedMembers) {
                     pcts[m.id] = double.tryParse(pctControllers[m.id]!.text.trim()) ?? 0;
                   }
-                  final shares = buildPercentageShareMap(total: total, members: resolvedMembers, percentages: pcts);
-                  for (final e in shares.entries) {
-                    shareControllers[e.key]!.text = e.value.toString();
+                  final shares = buildPercentageShareMap(total: total, members: includedMembers, percentages: pcts);
+                  for (final m in resolvedMembers) {
+                    shareControllers[m.id]!.text = (shares[m.id] ?? 0).toString();
                   }
                 case SplitMode.shares:
                   final mults = <String, int>{};
-                  for (final m in resolvedMembers) {
+                  for (final m in includedMembers) {
                     mults[m.id] = int.tryParse(multControllers[m.id]!.text.trim()) ?? 1;
                   }
-                  final shares = buildMultiplierShareMap(total: total, members: resolvedMembers, multipliers: mults);
-                  for (final e in shares.entries) {
-                    shareControllers[e.key]!.text = e.value.toString();
+                  final shares = buildMultiplierShareMap(total: total, members: includedMembers, multipliers: mults);
+                  for (final m in resolvedMembers) {
+                    shareControllers[m.id]!.text = (shares[m.id] ?? 0).toString();
                   }
                 case SplitMode.exact:
-                  break; // user enters manually
+                  break; 
               }
             }
 
-            recomputeShares();
+            if (splitMode != SplitMode.exact) {
+              recomputeShares();
+            }
 
-            final total = int.tryParse(amountCtrl.text.trim()) ?? 0;
-            final sharesTotal = resolvedMembers.fold<int>(0, (sum, m) {
-              return sum + (int.tryParse(shareControllers[m.id]!.text.trim()) ?? 0);
-            });
+            final totalExpense = int.tryParse(amountCtrl.text.trim()) ?? 0;
+            final sumOfShares = shareControllers.values.fold<int>(0, (sum, ctrl) => sum + (int.tryParse(ctrl.text.trim()) ?? 0));
+            final isBalanced = totalExpense == sumOfShares;
+            final diff = totalExpense - sumOfShares;
 
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                16, 0, 16,
-                MediaQuery.of(sheetContext).viewInsets.bottom + 16,
-              ),
-              child: AppSurface(
+            return DraggableScrollableSheet(
+              initialChildSize: 0.85,
+              minChildSize: 0.5,
+              maxChildSize: 0.95,
+              builder: (_, scrollController) => AppSurface(
+                padding: EdgeInsets.zero,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
                 child: Form(
                   key: formKey,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SectionHeading(
-                          title: 'Add Expense',
-                          subtitle: 'Record a shared payment between group members.',
+                  child: ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 30),
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: descCtrl,
-                          decoration: const InputDecoration(labelText: 'Description (e.g. Dinner)'),
-                          validator: (v) {
-                            if ((v ?? '').trim().isEmpty) return 'Enter a description';
-                            return null;
-                          },
+                      ),
+                            const SizedBox(height: 20),
+                      TextFormField(
+                        controller: descCtrl,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                        decoration: const InputDecoration(
+                          labelText: 'Description',
+                          hintText: 'Dinner, Groceries, Rent...',
+                          floatingLabelBehavior: FloatingLabelBehavior.always,
                         ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: amountCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
-                          onChanged: (_) => setSheetState(() {}),
-                          validator: (v) {
-                            final val = int.tryParse((v ?? '').trim());
-                            if (val == null || val <= 0) return 'Enter a valid amount';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          initialValue: payerId,
-                          decoration: const InputDecoration(labelText: 'Who paid?'),
-                          items: resolvedMembers
-                              .map((m) => DropdownMenuItem(value: m.id, child: Text(m.name)))
-                              .toList(),
-                          onChanged: (v) {
-                            if (v != null) setSheetState(() => payerId = v);
-                          },
-                        ),
-                        const SizedBox(height: 14),
-
-                        // ── Split mode selector ─────────────────────
-                        Wrap(
-                          spacing: 8,
-                          children: SplitMode.values.map((mode) {
-                            final isSelected = splitMode == mode;
-                            return ChoiceChip(
-                              label: Text(mode.label),
-                              selected: isSelected,
-                              onSelected: (_) => setSheetState(() => splitMode = mode),
+                        onChanged: (v) => setSheetState(() {
+                          if (!isCategoryManual) {
+                            selectedCategory = ExpenseCategory.detect(v);
+                          }
+                        }),
+                        validator: (v) => (v ?? '').trim().isEmpty ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 12),
+                      // Modern Category Selector
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: ExpenseCategory.values.map((cat) {
+                            final isSelected = selectedCategory == cat;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: FilterChip(
+                                showCheckmark: false,
+                                avatar: Icon(cat.icon, size: 14, color: isSelected ? Colors.black : Colors.white70),
+                                label: Text(cat.label, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.w800 : FontWeight.normal, color: isSelected ? Colors.black : Colors.white70)),
+                                selected: isSelected,
+                                onSelected: (_) => setSheetState(() {
+                                  selectedCategory = cat;
+                                  isCategoryManual = true;
+                                }),
+                                selectedColor: kAccent,
+                              ),
                             );
                           }).toList(),
                         ),
-                        const SizedBox(height: 14),
+                      ),
+                      const SizedBox(height: 24),
 
-                        // ── Per-member inputs ───────────────────────
-                        ...resolvedMembers.map((m) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    m.name,
-                                    style: Theme.of(sheetContext).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                if (splitMode == SplitMode.percentage)
-                                  SizedBox(
-                                    width: 70,
-                                    child: TextFormField(
-                                      controller: pctControllers[m.id],
-                                      keyboardType: TextInputType.number,
-                                      decoration: const InputDecoration(suffixText: '%', isDense: true),
-                                      onChanged: (_) => setSheetState(() {}),
-                                    ),
-                                  ),
-                                if (splitMode == SplitMode.shares)
-                                  SizedBox(
-                                    width: 70,
-                                    child: TextFormField(
-                                      controller: multControllers[m.id],
-                                      keyboardType: TextInputType.number,
-                                      decoration: const InputDecoration(suffixText: 'x', isDense: true),
-                                      onChanged: (_) => setSheetState(() {}),
-                                    ),
-                                  ),
-                                if (splitMode == SplitMode.percentage || splitMode == SplitMode.shares)
-                                  const SizedBox(width: 8),
-                                SizedBox(
-                                  width: 100,
-                                  child: TextFormField(
-                                    controller: shareControllers[m.id],
-                                    readOnly: splitMode != SplitMode.exact,
-                                    keyboardType: TextInputType.number,
-                                    decoration: const InputDecoration(prefixText: '₹ ', labelText: 'Share', isDense: true),
-                                    onChanged: (_) => setSheetState(() {}),
-                                  ),
-                                ),
-                              ],
+                      // Core Details: Amount and Payer
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.03),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                        ),
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: amountCtrl,
+                              keyboardType: TextInputType.number,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: kAccent),
+                              decoration: const InputDecoration(
+                                labelText: 'Total Amount',
+                                prefixText: '₹ ',
+                                alignLabelWithHint: true,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                floatingLabelBehavior: FloatingLabelBehavior.always,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                              onChanged: (_) => setSheetState(() {
+                                if (splitMode != SplitMode.exact) recomputeShares();
+                              }),
+                              validator: (v) {
+                                final val = int.tryParse((v ?? '').trim());
+                                return (val == null || val <= 0) ? '!' : null;
+                              },
                             ),
-                          );
-                        }),
-
-
-                        const SizedBox(height: 6),
-                        Text(
-                          sharesTotal == total ? 'Split is balanced ✓' : 'Assigned ₹$sharesTotal of ₹$total',
-                          style: TextStyle(
-                            color: sharesTotal == total ? kAccent : Colors.white70,
-                            fontWeight: FontWeight.w600,
-                          ),
+                            const Divider(height: 32, color: Colors.white10),
+                            DropdownButtonFormField<String>(
+                              value: payerId,
+                              dropdownColor: Colors.black87,
+                              decoration: const InputDecoration(
+                                labelText: 'Paid By',
+                                floatingLabelBehavior: FloatingLabelBehavior.always,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                              items: resolvedMembers
+                                  .map((m) => DropdownMenuItem(value: m.id, child: Text(m.name, style: const TextStyle(fontWeight: FontWeight.w700))))
+                                  .toList(),
+                              onChanged: (v) { if (v != null) setSheetState(() => payerId = v); },
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 14),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            onPressed: () async {
-                              if (!formKey.currentState!.validate()) return;
-                              final shares = <String, int>{};
-                              for (final m in resolvedMembers) {
-                                shares[m.id] = int.tryParse(shareControllers[m.id]!.text.trim()) ?? 0;
+                      ),
+                      
+                      const SizedBox(height: 32),
+
+                      // Professional Split Selector
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('SPLIT METHOD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white38, letterSpacing: 1.5)),
+                          Text(splitMode.label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: kAccent)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: SplitMode.values.map((m) {
+                            final isSelected = splitMode == m;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: FilterChip(
+                                showCheckmark: false,
+                                label: Text(m.label, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.w800 : FontWeight.normal, color: isSelected ? Colors.black : Colors.white70)),
+                                selected: isSelected,
+                                onSelected: (val) {
+                                  if (val) {
+                                    setSheetState(() {
+                                      splitMode = m;
+                                      recomputeShares();
+                                    });
+                                  }
+                                },
+                                selectedColor: kAccent,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Member Rows
+                      ...resolvedMembers.map((m) {
+                        final isIncluded = includedIds.contains(m.id);
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: isIncluded ? Colors.white.withValues(alpha: 0.04) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: isIncluded ? kAccent.withValues(alpha: 0.1) : Colors.transparent),
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => setSheetState(() {
+                              if (isIncluded) {
+                                includedIds.remove(m.id);
+                                shareControllers[m.id]!.text = '0';
+                              } else {
+                                includedIds.add(m.id);
                               }
-                              final expense = Expense(
-                                id: '',
-                                description: descCtrl.text.trim(),
-                                amount: int.parse(amountCtrl.text.trim()),
-                                payerId: payerId,
-                                shares: shares,
-                                createdAt: DateTime.now(),
-                              );
-
-                              await appState.addExpense(groupId: _group.id, expense: expense);
-                              if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-                            },
-                            child: const Text('Add Expense'),
+                              recomputeShares();
+                            }),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isIncluded ? Icons.check_circle_rounded : Icons.circle_outlined,
+                                    color: isIncluded ? kAccent : Colors.white24,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          m.name,
+                                          style: TextStyle(
+                                            fontSize: 15, 
+                                            fontWeight: isIncluded ? FontWeight.w800 : FontWeight.w500,
+                                            color: isIncluded ? Colors.white : Colors.white38,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        if (isIncluded && (splitMode == SplitMode.percentage || splitMode == SplitMode.shares))
+                                          Text(
+                                            splitMode == SplitMode.percentage 
+                                              ? '${pctControllers[m.id]!.text}% Share'
+                                              : '${multControllers[m.id]!.text}x Weight',
+                                            style: const TextStyle(fontSize: 10, color: kAccent, fontWeight: FontWeight.w700),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isIncluded && (splitMode == SplitMode.percentage || splitMode == SplitMode.shares)) ...[
+                                    SizedBox(
+                                      width: 45,
+                                      child: TextFormField(
+                                        controller: splitMode == SplitMode.percentage ? pctControllers[m.id] : multControllers[m.id],
+                                        keyboardType: TextInputType.number,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                                        decoration: InputDecoration(
+                                          hintText: splitMode == SplitMode.percentage ? '%' : 'x',
+                                          isDense: true,
+                                          contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                                          border: UnderlineInputBorder(borderSide: BorderSide(color: kAccent.withValues(alpha: 0.3))),
+                                        ),
+                                        onChanged: (_) => setSheetState(() => recomputeShares()),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                  ],
+                                  SizedBox(
+                                    width: 75,
+                                    child: TextFormField(
+                                      controller: shareControllers[m.id],
+                                      keyboardType: TextInputType.number,
+                                      enabled: isIncluded && splitMode == SplitMode.exact,
+                                      textAlign: TextAlign.right,
+                                      style: TextStyle(
+                                        fontSize: 16, 
+                                        fontWeight: FontWeight.w900, 
+                                        color: isIncluded ? Colors.white : Colors.white10
+                                      ),
+                                      decoration: InputDecoration(
+                                        prefixText: '₹ ',
+                                        prefixStyle: const TextStyle(fontSize: 11, color: Colors.white38),
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                        border: InputBorder.none,
+                                      ),
+                                      onChanged: (_) => setSheetState(() {}),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
+                        );
+                      }),
+                      
+                      const SizedBox(height: 24),
+                      
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: isBalanced ? kAccent.withValues(alpha: 0.1) : Colors.redAccent.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(24),
                         ),
-                      ],
-                    ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    isBalanced ? 'BALANCED' : 'UNBALANCED',
+                                    style: TextStyle(
+                                      color: isBalanced ? kAccent : Colors.redAccent,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 10,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                  Text(
+                                    isBalanced ? 'All shares match total' : 'Remaining: ₹$diff',
+                                    style: TextStyle(
+                                      color: isBalanced ? Colors.white : Colors.redAccent,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size(120, 56),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                              ),
+                              onPressed: () async {
+                                if (!formKey.currentState!.validate()) return;
+                                final currentTotal = int.tryParse(amountCtrl.text.trim()) ?? 0;
+                                final currentSum = shareControllers.values.fold<int>(0, (sum, ctrl) => sum + (int.tryParse(ctrl.text.trim()) ?? 0));
+                                
+                                if (currentTotal != currentSum) {
+                                  ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                    SnackBar(
+                                      behavior: SnackBarBehavior.floating,
+                                      backgroundColor: Colors.redAccent,
+                                      content: Text('Total (₹$currentTotal) ≠ Shares (₹$currentSum)', style: const TextStyle(fontWeight: FontWeight.w800)),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                final shares = { for (final m in resolvedMembers) m.id: int.tryParse(shareControllers[m.id]!.text.trim()) ?? 0 };
+                                
+                                final expense = Expense(
+                                  id: initialExpense?.id ?? '',
+                                  description: descCtrl.text.trim(),
+                                  amount: currentTotal,
+                                  payerId: payerId,
+                                  shares: shares,
+                                  createdAt: initialExpense?.createdAt ?? DateTime.now(),
+                                  createdBy: initialExpense?.createdBy ?? widget.profile.uid,
+                                  category: selectedCategory,
+                                );
+
+                                if (initialExpense == null) {
+                                  await appState.addExpense(groupId: _group.id, expense: expense);
+                                } else {
+                                  await appState.updateExpense(groupId: _group.id, oldExpense: initialExpense, newExpense: expense);
+                                }
+                                if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                              },
+                              icon: Icon(initialExpense == null ? Icons.add_rounded : Icons.check_rounded),
+                              label: Text(initialExpense == null ? 'Add' : 'Update'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
                   ),
                 ),
               ),
@@ -561,6 +817,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                           toName: transaction.toName,
                           amount: int.parse(amountCtrl.text.trim()),
                           settledAt: DateTime.now(),
+                          createdBy: widget.profile.uid,
                           note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
                         );
                         await appState.addSettlement(groupId: _group.id, record: record);
@@ -598,6 +855,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
           builder: (context, profilesSnap) {
             final profiles = profilesSnap.data ?? {};
             final resolvedMembers = _resolveAll(_group.members, profiles);
+            final memberMap = {for (var m in resolvedMembers) m.id: m};
 
             return StreamBuilder<List<Expense>>(
               stream: appState.expensesStream(_group.id),
@@ -613,7 +871,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                     
                     final transactions = simplifyWithSettlements(
                       members: resolvedMembers,
-                      expenses: expenses,
+                                      expenses: expenses,
                       settlements: settlements,
                     );
                     final balances = computeMemberBalances(
@@ -630,8 +888,41 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
 
                     return Scaffold(
                       appBar: AppBar(
-                        title: Text(titleName),
+                        title: _isSearching 
+                          ? TextField(
+                              controller: _searchController,
+                              autofocus: true,
+                              decoration: const InputDecoration(
+                                hintText: 'Search expenses...',
+                                border: InputBorder.none,
+                                hintStyle: TextStyle(color: Colors.white30),
+                              ),
+                              style: const TextStyle(color: Colors.white),
+                              onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
+                            )
+                          : Text(titleName),
                         actions: [
+                          if (_isSearching)
+                            IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _isSearching = false;
+                                  _searchController.clear();
+                                  _searchQuery = '';
+                                });
+                              },
+                              icon: const Icon(Icons.close),
+                            )
+                          else
+                            IconButton(
+                              onPressed: () => setState(() => _isSearching = true),
+                              icon: const Icon(Icons.search),
+                            ),
+                          IconButton(
+                            onPressed: () => _openAnalytics(appState, expenses),
+                            icon: const Icon(Icons.bar_chart_outlined),
+                            tooltip: 'Analytics',
+                          ),
                           if (!_group.isNonGroup)
                             IconButton(
                               onPressed: () => _openEditGroup(appState, expenses, settlements),
@@ -647,7 +938,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                       floatingActionButton: Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: FloatingActionButton.extended(
-                          onPressed: () => _openAddExpense(appState, resolvedMembers),
+                          onPressed: () => _openAddEditExpense(appState, resolvedMembers),
                           icon: const Icon(Icons.receipt_long),
                           label: const Text('Add Expense'),
                           elevation: 4,
@@ -705,7 +996,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                         children: [
                                           Expanded(
                                             child: FilledButton.icon(
-                                              onPressed: () => _openSettleSheet(context, appState, transactions),
+                                              onPressed: () => _openSettleSheet(context, appState, transactions, memberMap),
                                               icon: const Icon(Icons.handshake_outlined),
                                               label: const Text('Settle Up'),
                                               style: FilledButton.styleFrom(
@@ -739,9 +1030,12 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                               
                               Expanded(
                                 child: _ActivityTab(
-                                  expenses: expenses,
+                                  expenses: _searchQuery.isEmpty 
+                                    ? expenses 
+                                    : expenses.where((e) => e.description.toLowerCase().contains(_searchQuery)).toList(),
                                   settlements: settlements,
                                   resolvedMembers: resolvedMembers,
+                                  onEditExpense: (e) => _openAddEditExpense(appState, resolvedMembers, initialExpense: e),
                                   appState: appState,
                                   groupId: _group.id,
                                   totalSpent: totalSpent,
@@ -826,6 +1120,7 @@ class _ActivityTab extends StatelessWidget {
     required this.appState,
     required this.groupId,
     required this.totalSpent,
+    required this.onEditExpense,
   });
 
   final List<Expense> expenses;
@@ -834,6 +1129,7 @@ class _ActivityTab extends StatelessWidget {
   final AppState appState;
   final String groupId;
   final int totalSpent;
+  final Function(Expense) onEditExpense;
 
   @override
   Widget build(BuildContext context) {
@@ -920,18 +1216,22 @@ class _ActivityTab extends StatelessWidget {
                         context,
                         'Delete Expense',
                         'Are you sure you want to remove "${expense.description}"?',
-                        () => appState.deleteExpense(groupId: groupId, expenseId: expense.id),
+                        () => appState.deleteExpense(groupId: groupId, expense: expense),
                       ),
+                      onEdit: () => onEditExpense(expense),
                     );
                   } else {
                     final settlement = item.settlement!;
                     return _SettlementActivityCard(
                       settlement: settlement,
+                      groupId: groupId,
+                      appState: appState,
+                      memberMap: memberMap,
                       onDelete: () => _showConfirmDelete(
                         context,
                         'Delete Settlement',
                         'Are you sure you want to remove this payment of ₹${settlement.amount}?',
-                        () => appState.deleteSettlement(groupId: groupId, settlementId: settlement.id),
+                        () => appState.deleteSettlement(groupId: groupId, record: settlement),
                       ),
                     );
                   }
@@ -941,13 +1241,6 @@ class _ActivityTab extends StatelessWidget {
     );
   }
 
-  String _formatMonthYear(DateTime d) {
-    final months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    return '${months[d.month - 1]} ${d.year}';
-  }
 }
 
 class _MonthHeader extends StatelessWidget {
@@ -978,11 +1271,13 @@ class _ExpenseActivityCard extends StatefulWidget {
     required this.expense,
     required this.memberMap,
     required this.onDelete,
+    required this.onEdit,
   });
 
   final Expense expense;
   final Map<String, GroupMember> memberMap;
   final VoidCallback onDelete;
+  final VoidCallback onEdit;
 
   @override
   State<_ExpenseActivityCard> createState() => _ExpenseActivityCardState();
@@ -991,22 +1286,18 @@ class _ExpenseActivityCard extends StatefulWidget {
 class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
   bool _expanded = false;
 
-  String _getMonth(DateTime d) {
-    const m = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-    return m[d.month - 1];
-  }
 
   @override
   Widget build(BuildContext context) {
-    final expense = widget.expense;
-    final cat = expense.resolvedCategory;
-    final payer = widget.memberMap[expense.payerId];
-    final payerName = payer?.name ?? 'Unknown';
-    final involvedMembers = expense.shares.entries
+    final appState = context.read<AppState>();
+    final payer = widget.memberMap[widget.expense.payerId];
+    final payerName = payer != null ? appState.resolveMemberName(payer) : 'Unknown';
+    final involvedMembers = widget.expense.shares.entries
         .where((e) => e.value > 0)
         .map((e) => widget.memberMap[e.key])
         .where((m) => m != null)
         .toList();
+    final cat = widget.expense.resolvedCategory;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -1032,14 +1323,14 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                       child: Column(
                         children: [
                           Text(
-                            _getMonth(expense.createdAt),
+                            _getMonth(widget.expense.createdAt),
                             style: const TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
                                 color: Colors.white38),
                           ),
                           Text(
-                            expense.createdAt.day.toString(),
+                            widget.expense.createdAt.day.toString(),
                             style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w900,
@@ -1055,7 +1346,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            expense.description,
+                            widget.expense.description,
                             style: const TextStyle(
                                 fontWeight: FontWeight.w800, fontSize: 15),
                             maxLines: 1,
@@ -1063,9 +1354,9 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                             payer?.id == FirebaseAuth.instance.currentUser?.uid
-                                ? 'You paid ₹${expense.amount}'
-                                : '$payerName paid ₹${expense.amount}',
+                              payer?.id == FirebaseAuth.instance.currentUser?.uid
+                                 ? 'You paid ₹${widget.expense.amount}'
+                                 : '$payerName paid ₹${widget.expense.amount}',
                             style: const TextStyle(
                                 color: Colors.white54, fontSize: 12),
                           ),
@@ -1130,7 +1421,16 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                       style: const TextStyle(color: Colors.white24, fontSize: 11),
                     ),
                     const Spacer(),
-                    if (_expanded)
+                    if (_expanded) ...[
+                      IconButton(
+                        onPressed: widget.onEdit,
+                        icon: const Icon(Icons.edit_outlined, size: 16, color: kAccent),
+                        style: IconButton.styleFrom(
+                          backgroundColor: kAccent.withValues(alpha: 0.1),
+                          minimumSize: const Size(32, 32),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       IconButton(
                         onPressed: widget.onDelete,
                         icon: const Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
@@ -1139,6 +1439,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                           minimumSize: const Size(32, 32),
                         ),
                       ),
+                    ],
                   ],
                 ),
               ),
@@ -1165,7 +1466,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                             fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 8),
-                      ...expense.shares.entries
+                      ...widget.expense.shares.entries
                           .where((e) => e.value > 0)
                           .map((entry) {
                         final member =
@@ -1173,7 +1474,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                         final memberName =
                             member?.name ?? entry.key;
                         final isPayer =
-                            entry.key == expense.payerId;
+                            entry.key == widget.expense.payerId;
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 4),
                           child: Row(
@@ -1237,72 +1538,157 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
 class _SettlementActivityCard extends StatelessWidget {
   const _SettlementActivityCard({
     required this.settlement,
+    required this.groupId,
+    required this.appState,
+    required this.memberMap,
     required this.onDelete,
   });
 
   final SettlementRecord settlement;
+  final String groupId;
+  final AppState appState;
+  final Map<String, GroupMember> memberMap;
   final VoidCallback onDelete;
 
-  String _formatDate(DateTime d) {
-    final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    return '${d.day} ${months[d.month - 1]}';
-  }
 
   @override
   Widget build(BuildContext context) {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final isReceiver = settlement.toMemberId == currentUid;
+    final isSender = settlement.fromMemberId == currentUid;
+
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+
+    switch (settlement.status) {
+      case SettlementStatus.confirmed:
+        statusColor = const Color(0xFF4ADE80);
+        statusIcon = Icons.check_circle_outline;
+        statusText = 'Settled';
+        break;
+      case SettlementStatus.disputed:
+        statusColor = Colors.redAccent;
+        statusIcon = Icons.report_problem_outlined;
+        statusText = 'Disputed';
+        break;
+      case SettlementStatus.pending:
+      default:
+        statusColor = Colors.amberAccent;
+        statusIcon = Icons.hourglass_empty;
+        statusText = 'Pending';
+        break;
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: AppSurface(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
+        padding: const EdgeInsets.only(top: 12, bottom: 8, left: 16, right: 16),
+        child: Column(
           children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: const Color(0xFF4ADE80).withValues(alpha: 0.12),
-              ),
-              child: const Icon(Icons.check_circle_outline,
-                  color: Color(0xFF4ADE80), size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${settlement.fromName} → ${settlement.toName}',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 14),
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: statusColor.withValues(alpha: 0.12),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${settlement.note ?? "Payment recorded"} · ${_formatDate(settlement.settledAt)}',
-                    style: const TextStyle(
-                        color: Colors.white54, fontSize: 11),
+                  child: Icon(statusIcon, color: statusColor, size: 18),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${memberMap[settlement.fromMemberId]?.name ?? settlement.fromName} → ${memberMap[settlement.toMemberId]?.name ?? settlement.toName}',
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          if (settlement.status != SettlementStatus.confirmed) ...[
+                             _statusBadge(statusText, statusColor),
+                             const SizedBox(width: 6),
+                          ],
+                          Text(
+                            '${settlement.note ?? "Payment recorded"} · ${_formatDate(settlement.settledAt)}',
+                            style: const TextStyle(color: Colors.white54, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  '₹${settlement.amount}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: statusColor,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: onDelete,
+                  child: const Icon(Icons.delete_outline, size: 16, color: Colors.white24),
+                ),
+              ],
+            ),
+            
+            // Action buttons for the Receiver if Pending/Disputed
+            if (isReceiver && settlement.status != SettlementStatus.confirmed) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: Colors.white10),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => appState.disputeSettlement(groupId: groupId, settlementId: settlement.id),
+                    icon: const Icon(Icons.close, size: 14),
+                    label: const Text('Dispute'),
+                    style: TextButton.styleFrom(foregroundColor: Colors.redAccent, visualDensity: VisualDensity.compact),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: () => appState.confirmSettlement(groupId: groupId, record: settlement),
+                    icon: const Icon(Icons.check, size: 14),
+                    label: const Text('Confirm Receipt'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF4ADE80), 
+                      foregroundColor: Colors.black,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
                   ),
                 ],
               ),
-            ),
-            Text(
-              '₹${settlement.amount}',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: const Color(0xFF4ADE80),
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-            const SizedBox(width: 6),
-            GestureDetector(
-              onTap: onDelete,
-              child: const Icon(Icons.delete_outline,
-                  size: 16, color: Colors.white24),
-            ),
+            ] else if (isSender && settlement.status == SettlementStatus.pending) ...[
+               const SizedBox(height: 8),
+               Text(
+                 'Awaiting confirmation from ${settlement.toName}',
+                 style: const TextStyle(color: Colors.white38, fontSize: 10, fontStyle: FontStyle.italic),
+               ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _statusBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.w900),
       ),
     );
   }
@@ -1371,6 +1757,7 @@ class _BalancesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appState = context.read<AppState>();
     final myBalance = balances[currentUserId] ?? 0;
 
     return ListView(
@@ -1444,7 +1831,7 @@ class _BalancesTab extends StatelessWidget {
                     ),
                     child: Center(
                       child: Text(
-                        member.name.isNotEmpty ? member.name[0].toUpperCase() : '?',
+                        appState.resolveMemberName(member).isNotEmpty ? appState.resolveMemberName(member)[0].toUpperCase() : '?',
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
                           color: balance == 0
@@ -1462,7 +1849,7 @@ class _BalancesTab extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          member.name,
+                          appState.resolveMemberName(member),
                           style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 2),
@@ -1550,6 +1937,7 @@ class _SettleTab extends StatelessWidget {
   const _SettleTab({
     required this.transactions,
     required this.currentUserId,
+    required this.memberMap,
     required this.onPay,
     required this.onRecord,
     required this.onRemind,
@@ -1557,6 +1945,7 @@ class _SettleTab extends StatelessWidget {
 
   final List<SettlementTransaction> transactions;
   final String currentUserId;
+  final Map<String, GroupMember> memberMap;
   final Future<void> Function(SettlementTransaction) onPay;
   final Future<void> Function(SettlementTransaction) onRecord;
   final Future<void> Function(SettlementTransaction) onRemind;
@@ -1733,6 +2122,108 @@ class _TransactionCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Analytics Dashboard ──────────────────────────────────────────────────
+
+class _AnalyticsSheet extends StatelessWidget {
+  const _AnalyticsSheet({
+    required this.expenses,
+    required this.group,
+  });
+
+  final List<Expense> expenses;
+  final SettlementGroup group;
+
+  Map<ExpenseCategory, int> _computeTotals() {
+    final totals = <ExpenseCategory, int>{};
+    for (final e in expenses) {
+      final cat = e.resolvedCategory;
+      totals[cat] = (totals[cat] ?? 0) + e.amount;
+    }
+    return totals;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final totals = _computeTotals();
+    final sortedCats = totals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final grandTotal = totals.values.fold<int>(0, (sum, v) => sum + v);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      builder: (context, controller) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF13121D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: SectionHeading(
+                title: 'Spending Analytics',
+                subtitle: 'Category-wise breakdown of all expenses.',
+              ),
+            ),
+            if (expenses.isEmpty)
+              const Expanded(child: Center(child: Text('No expenses recorded yet', style: TextStyle(color: Colors.white38))))
+            else
+              Expanded(
+                child: ListView.builder(
+                  controller: controller,
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  itemCount: sortedCats.length,
+                  itemBuilder: (context, index) {
+                    final entry = sortedCats[index];
+                    final cat = entry.key;
+                    final amount = entry.value;
+                    final pct = amount / grandTotal;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 20),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Icon(cat.icon, size: 18, color: kAccent),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(cat.label, style: const TextStyle(fontWeight: FontWeight.w600))),
+                              Text('₹$amount', style: const TextStyle(fontWeight: FontWeight.w800, color: kAccent)),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Stack(
+                            children: [
+                              Container(
+                                height: 6,
+                                width: double.infinity,
+                                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(3)),
+                              ),
+                              FractionallySizedBox(
+                                widthFactor: pct,
+                                child: Container(
+                                  height: 6,
+                                  decoration: BoxDecoration(gradient: LinearGradient(colors: [kAccent, kSecondary]), borderRadius: BorderRadius.circular(3)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

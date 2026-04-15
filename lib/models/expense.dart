@@ -52,6 +52,7 @@ class Expense {
     required this.payerId,
     required this.shares,
     required this.createdAt,
+    required this.createdBy,
     this.category,
   });
 
@@ -61,6 +62,7 @@ class Expense {
   final String payerId;
   final Map<String, int> shares;
   final DateTime createdAt;
+  final String createdBy;
   final ExpenseCategory? category;
 
   /// Returns the resolved category — stored or auto-detected.
@@ -74,6 +76,7 @@ class Expense {
       'payerId': payerId,
       'shares': shares,
       'createdAt': Timestamp.fromDate(createdAt),
+      'createdBy': createdBy,
       if (category != null) 'category': category!.name,
     };
   }
@@ -107,6 +110,7 @@ class Expense {
       payerId: json['payerId'] as String? ?? '',
       shares: shares,
       createdAt: createdAt,
+      createdBy: json['createdBy'] as String? ?? '',
       category: category,
     );
   }

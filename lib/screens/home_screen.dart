@@ -15,15 +15,27 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     required this.user,
+    required this.profile,
   });
 
   final User user;
+  final UserProfile profile;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final appState = context.read<AppState>();
+      appState.initMessaging();
+      appState.loadLocalContacts();
+    });
+  }
+
   // Feature flag to enable/disable 1-on-1 Friends feature
   static const bool _enableFriendsFeature = false;
 
@@ -136,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openAddFriend(
-      BuildContext context, AppState appState, UserProfile profile) async {
+      BuildContext context, AppState appState, UserProfile profile, List<SettlementGroup> existingGroups) async {
     final contactCtrl = TextEditingController();
     final nameCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -197,6 +209,22 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: FilledButton(
                           onPressed: () async {
                             if (!formKey.currentState!.validate()) return;
+                            
+                            // Fix 4: De-duplication check
+                            if (fetchedProfile != null) {
+                              final duplicate = existingGroups.where((g) => 
+                                g.isNonGroup && g.members.any((m) => m.id == fetchedProfile!.uid)
+                              ).firstOrNull;
+                              
+                              if (duplicate != null) {
+                                if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('${fetchedProfile!.displayName} is already your friend!')),
+                                );
+                                return;
+                              }
+                            }
+
                             final friendMember = GroupMember(
                               id: fetchedProfile?.uid ?? DateTime.now().millisecondsSinceEpoch.toString(),
                               name: nameCtrl.text.trim(),
@@ -246,18 +274,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final appState = context.read<AppState>();
+    final profile = widget.profile;
 
-    return StreamBuilder<UserProfile?>(
-      stream: appState.profileStream(widget.user.uid),
-      builder: (context, profileSnapshot) {
-        if (!profileSnapshot.hasData) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
-
-        final profile = profileSnapshot.data!;
-
-        return StreamBuilder<List<SettlementGroup>>(
-          stream: appState.groupsStream(widget.user.uid),
+    return StreamBuilder<List<SettlementGroup>>(
+          stream: appState.groupsStream(uid: widget.user.uid, phoneNumber: profile.phoneNumber),
           builder: (context, groupSnapshot) {
             if (groupSnapshot.hasError) {
               return Scaffold(body: Center(child: Text('Error: ${groupSnapshot.error}')));
@@ -288,7 +308,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (_enableFriendsFeature)
                     FloatingActionButton.small(
                       heroTag: 'addFriend',
-                      onPressed: () => _openAddFriend(context, appState, profile),
+                      onPressed: () => _openAddFriend(context, appState, profile, groups),
                       child: const Icon(Icons.person_add_alt_1),
                     ),
                   if (_enableFriendsFeature)
@@ -321,7 +341,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 14),
                           if (friends.isEmpty)
-                            _AddFirstFriend(onTap: () => _openAddFriend(context, appState, profile))
+                            _AddFirstFriend(onTap: () => _openAddFriend(context, appState, profile, groups))
                           else
                             _GroupList(
                               groups: friends,
@@ -353,8 +373,6 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
         );
-      },
-    );
   }
 }
 
@@ -558,7 +576,8 @@ class _GroupCard extends StatelessWidget {
         (m) => m.id != currentUserId,
         orElse: () => group.members.first,
       );
-      displayName = otherMember.name;
+      final appState = context.read<AppState>();
+      displayName = appState.resolveMemberName(otherMember);
     }
 
     return InkWell(

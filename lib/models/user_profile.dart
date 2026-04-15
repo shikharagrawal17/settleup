@@ -6,6 +6,7 @@ class UserProfile {
     required this.upiId,
     this.phoneNumber,
     this.photoUrl,
+    this.isPhoneVerified = false,
   });
 
   final String uid;
@@ -14,6 +15,7 @@ class UserProfile {
   final String upiId;
   final String? phoneNumber;
   final String? photoUrl;
+  final bool isPhoneVerified;
 
   bool get hasUpiId => upiId.trim().isNotEmpty;
   bool get hasPhoneNumber =>
@@ -26,6 +28,7 @@ class UserProfile {
       'upiId': upiId,
       'phoneNumber': phoneNumber,
       'photoUrl': photoUrl,
+      'isPhoneVerified': isPhoneVerified,
     };
   }
 
@@ -37,6 +40,7 @@ class UserProfile {
       upiId: json['upiId'] as String? ?? '',
       phoneNumber: json['phoneNumber'] as String?,
       photoUrl: json['photoUrl'] as String?,
+      isPhoneVerified: json['isPhoneVerified'] as bool? ?? false,
     );
   }
 }

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'package:flutter_contacts/flutter_contacts.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -19,12 +21,73 @@ class AppState extends ChangeNotifier {
   bool _initializingGoogle = false;
   bool _isSigningIn = false;
   String? _authError;
+  Map<String, String> _localContactMap = {};
 
   bool get isSigningIn => _isSigningIn;
   String? get authError => _authError;
+
+  Future<void> loadLocalContacts() async {
+    try {
+      final status = await FlutterContacts.permissions.request(PermissionType.read);
+      if (status != PermissionStatus.granted) return;
+
+      final contacts = await FlutterContacts.getAll(
+        properties: {ContactProperty.phone},
+      );
+      final Map<String, String> resolved = {};
+      for (final contact in contacts) {
+        for (final phone in contact.phones) {
+          final normalised = AppState.normalisePhone(phone.number);
+          if (normalised.isNotEmpty) {
+            resolved[normalised] = contact.displayName ?? 'Unknown Contact';
+          }
+        }
+      }
+      _localContactMap = resolved;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading contacts: $e');
+    }
+  }
+
+  String resolveMemberName(GroupMember member) {
+    if (member.isSelf) return 'You';
+    if (member.phoneNumber != null) {
+      final normalised = AppState.normalisePhone(member.phoneNumber!);
+      if (_localContactMap.containsKey(normalised)) {
+        return _localContactMap[normalised]!;
+      }
+    }
+    return member.name;
+  }
   FirebaseAuth get auth => _auth;
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  Future<void> initMessaging() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final messaging = FirebaseMessaging.instance;
+      // Request for iOS primarily
+      await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      
+      final token = await messaging.getToken();
+      if (token != null) {
+        await _firestore.collection('users').doc(user.uid).set({
+          'fcmToken': token,
+          'lastActive': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    } catch (e) {
+      debugPrint('FCM Error: $e');
+    }
+  }
 
   Future<void> _initializeGoogleSignIn() async {
     if (_initializingGoogle) return;
@@ -58,6 +121,63 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  String? _verificationId;
+  int? _resendToken;
+
+  Future<void> verifyPhone({
+    required String phoneNumber,
+    required Function(String verificationId, int? resendToken) codeSent,
+    required Function(String error) verificationFailed,
+  }) async {
+    _authError = null;
+    notifyListeners();
+
+    await _auth.verifyPhoneNumber(
+      phoneNumber: AppState.normalisePhone(phoneNumber),
+      verificationCompleted: (PhoneAuthCredential credential) async {
+        final userCredential = await _auth.signInWithCredential(credential);
+        await _ensureUserProfile(userCredential.user);
+      },
+      verificationFailed: (e) {
+        _authError = e.message;
+        notifyListeners();
+        verificationFailed(e.message ?? 'Verification failed');
+      },
+      codeSent: (String vid, int? token) {
+        _verificationId = vid;
+        _resendToken = token;
+        codeSent(vid, token);
+      },
+      codeAutoRetrievalTimeout: (String vid) {
+        _verificationId = vid;
+      },
+    );
+  }
+
+  Future<void> signInWithOtp(String smsCode) async {
+    if (_verificationId == null) return;
+    
+    _isSigningIn = true;
+    _authError = null;
+    notifyListeners();
+    
+    try {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: _verificationId!,
+        smsCode: smsCode,
+      );
+      final userCredential = await _auth.signInWithCredential(credential);
+      await _ensureUserProfile(userCredential.user);
+    } on FirebaseAuthException catch (e) {
+      _authError = e.message;
+    } catch (e) {
+      _authError = e.toString();
+    } finally {
+      _isSigningIn = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> signOut() async {
     await GoogleSignIn.instance.signOut();
     await _auth.signOut();
@@ -68,11 +188,22 @@ class AppState extends ChangeNotifier {
 
     final doc = _userDoc(user.uid);
     final snapshot = await doc.get();
+
+    final normalizedEmail = (user.email ?? '').toLowerCase();
+    
+    // Check if another user already claimed this email
+    if (normalizedEmail.isNotEmpty) {
+       final existing = await lookupUserByContact(normalizedEmail);
+       if (existing != null && existing.uid != user.uid) {
+          // This email is already taken.
+       }
+    }
+
     if (snapshot.exists) {
       await doc.set(
         {
           'displayName': user.displayName ?? 'User',
-          'email': user.email ?? '',
+          'email': normalizedEmail,
           'photoUrl': user.photoURL,
           'updatedAt': FieldValue.serverTimestamp(),
         },
@@ -83,7 +214,7 @@ class AppState extends ChangeNotifier {
 
     await doc.set({
       'displayName': user.displayName ?? 'User',
-      'email': (user.email ?? '').toLowerCase(),
+      'email': normalizedEmail,
       'photoUrl': user.photoURL,
       'phoneNumber': user.phoneNumber ?? '',
       'upiId': '',
@@ -104,6 +235,20 @@ class AppState extends ChangeNotifier {
       if (data == null) return null;
       return UserProfile.fromJson(uid, data);
     });
+  }
+
+  Future<void> updateProfile({
+    required String uid,
+    required String displayName,
+    required String? phoneNumber,
+    required String upiId,
+  }) async {
+    await _userDoc(uid).set({
+      'displayName': displayName,
+      'phoneNumber': phoneNumber != null ? normalisePhone(phoneNumber) : null,
+      'upiId': upiId,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   Stream<Map<String, UserProfile>> profilesStream(List<String> uids) {
@@ -132,13 +277,36 @@ class AppState extends ChangeNotifier {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    final updates = <String, dynamic>{
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-    if (upiId != null) updates['upiId'] = upiId.trim();
-    if (phoneNumber != null) updates['phoneNumber'] = normalisePhone(phoneNumber);
+    final normalizedPhone = phoneNumber != null ? normalisePhone(phoneNumber) : null;
 
-    await _userDoc(user.uid).set(updates, SetOptions(merge: true));
+    await _firestore.runTransaction((transaction) async {
+      final userRef = _userDoc(user.uid);
+      final userSnap = await transaction.get(userRef);
+      final oldPhone = userSnap.data()?['phoneNumber'] as String?;
+
+      if (normalizedPhone != null && normalizedPhone != oldPhone) {
+        // Check if phone is already taken in the registry
+        final regRef = _firestore.collection('registries').doc('phone_$normalizedPhone');
+        final regSnap = await transaction.get(regRef);
+        if (regSnap.exists && regSnap.data()?['uid'] != user.uid) {
+          throw Exception('This phone number is already registered with another account.');
+        }
+        
+        // Update registry: remove old, add new
+        if (oldPhone != null && oldPhone.isNotEmpty) {
+          transaction.delete(_firestore.collection('registries').doc('phone_$oldPhone'));
+        }
+        transaction.set(regRef, {'uid': user.uid, 'updatedAt': FieldValue.serverTimestamp()});
+      }
+
+      final updates = <String, dynamic>{
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (upiId != null) updates['upiId'] = upiId.trim();
+      if (normalizedPhone != null) updates['phoneNumber'] = normalizedPhone;
+
+      transaction.update(userRef, updates);
+    });
   }
 
   Future<void> saveUpiId(String upiId) => saveProfile(upiId: upiId);
@@ -214,17 +382,22 @@ class AppState extends ChangeNotifier {
   // ─── Group streams ────────────────────────────────────────────────────
 
   /// All groups where the current user is a member, ordered by name.
-  Stream<List<SettlementGroup>> groupsStream(String uid) {
+  Stream<List<SettlementGroup>> groupsStream({required String uid, String? phoneNumber}) {
+    final identifiers = [uid];
+    if (phoneNumber != null && phoneNumber.isNotEmpty) {
+      identifiers.add(phoneNumber);
+    }
+
     return _groupsCol
-        .where('memberIds', arrayContains: uid)
+        .where('memberIdentifiers', arrayContainsAny: identifiers)
         .snapshots()
         .map((snap) {
       final items = snap.docs
           .map((doc) => SettlementGroup.fromJson(doc.id, doc.data()))
           .where((g) {
             // Soft delete check
-            final data = snap.docs.firstWhere((d) => d.id == g.id).data();
-            return data['isDeleted'] != true;
+            final doc = snap.docs.firstWhere((d) => d.id == g.id);
+            return doc.data()['isDeleted'] != true;
           })
           .toList();
       items.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -270,15 +443,25 @@ class AppState extends ChangeNotifier {
       )),
     ];
 
-    // Collect all member UIDs for the memberIds index.
-    // For guests (no uid), we generate a stable opaque id stored in member.id.
+    // Collect all member UIDs and phone numbers for global lookup.
     final memberIds = normalizedMembers.map((m) => m.id).toList();
+    final memberIdentifiers = <String>{};
+    for (final m in normalizedMembers) {
+      memberIdentifiers.add(m.id);
+      if (m.id.startsWith('manual_') || m.id.startsWith('contact_')) {
+         // If it's a guest, they only have an opaque ID or phone.
+      }
+      if (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) {
+        memberIdentifiers.add(m.phoneNumber!);
+      }
+    }
 
     await _groupsCol.add({
       'name': name.trim(),
       'createdBy': user.uid,
       'isNonGroup': isNonGroup,
       'memberIds': memberIds,
+      'memberIdentifiers': memberIdentifiers.toList(),
       'members': normalizedMembers.map((m) => m.toJson()).toList(),
       'isDeleted': false,
       'createdAt': FieldValue.serverTimestamp(),
@@ -313,20 +496,38 @@ class AppState extends ChangeNotifier {
   Future<void> updateGroupMembers({
     required String groupId,
     required List<GroupMember> members,
+    String? newCreatorId,
   }) async {
     final normalized = members.map((m) => GroupMember(
       id: m.id,
       name: m.name,
       phoneNumber: m.phoneNumber != null ? normalisePhone(m.phoneNumber!) : null,
       upiId: m.upiId,
+      isSelf: m.isSelf,
     )).toList();
+
     final memberIds = normalized.map((m) => m.id).toList();
+    final memberIdentifiers = <String>{};
+    for (final m in normalized) {
+      memberIdentifiers.add(m.id);
+      if (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) {
+        memberIdentifiers.add(m.phoneNumber!);
+      }
+    }
+
+    final Map<String, dynamic> data = {
+      'members': normalized.map((m) => m.toJson()).toList(),
+      'memberIds': memberIds,
+      'memberIdentifiers': memberIdentifiers.toList(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (newCreatorId != null) {
+      data['createdBy'] = newCreatorId;
+    }
+
     await _groupDoc(groupId).set(
-      {
-        'members': normalized.map((m) => m.toJson()).toList(),
-        'memberIds': memberIds,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
+      data,
       SetOptions(merge: true),
     );
   }
@@ -350,23 +551,107 @@ class AppState extends ChangeNotifier {
     required String groupId,
     required Expense expense,
   }) async {
-    await _expensesCol(groupId).add(expense.toJson());
-    // Touch the group's updatedAt so members' group-list streams see activity.
-    await _groupDoc(groupId).set(
-      {'updatedAt': FieldValue.serverTimestamp()},
-      SetOptions(merge: true),
-    );
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    // Attach creator
+    final expenseData = expense.toJson();
+    expenseData['createdBy'] = user.uid;
+
+    final batch = _firestore.batch();
+    batch.set(_expensesCol(groupId).doc(), expenseData);
+    
+    // Update aggregated balances
+    final Map<String, dynamic> updates = {
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    final Map<String, int> netDeltas = {};
+    // Payer Impact
+    netDeltas[expense.payerId] = (netDeltas[expense.payerId] ?? 0) + expense.amount;
+    // Shares Impact
+    for (var entry in expense.shares.entries) {
+      netDeltas[entry.key] = (netDeltas[entry.key] ?? 0) - entry.value;
+    }
+
+    for (var entry in netDeltas.entries) {
+      if (entry.value != 0) {
+        updates['netBalances.${entry.key}'] = FieldValue.increment(entry.value);
+      }
+    }
+    batch.update(_groupDoc(groupId), updates);
+    
+    await batch.commit();
+  }
+
+  Future<void> updateExpense({
+    required String groupId,
+    required Expense oldExpense,
+    required Expense newExpense,
+  }) async {
+    final batch = _firestore.batch();
+    
+    // 1. Update expense doc
+    batch.set(_expensesCol(groupId).doc(oldExpense.id), newExpense.toJson());
+    
+    // 2. Adjust aggregated balances
+    final Map<String, dynamic> updates = {
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    // The most reliable way is to sum all local deltas per member first.
+    final Map<String, int> netDeltas = {};
+    
+    // Payer Impact
+    netDeltas[oldExpense.payerId] = (netDeltas[oldExpense.payerId] ?? 0) - oldExpense.amount;
+    netDeltas[newExpense.payerId] = (netDeltas[newExpense.payerId] ?? 0) + newExpense.amount;
+    
+    // Shares Impact
+    for (var entry in oldExpense.shares.entries) {
+      netDeltas[entry.key] = (netDeltas[entry.key] ?? 0) + entry.value;
+    }
+    for (var entry in newExpense.shares.entries) {
+      netDeltas[entry.key] = (netDeltas[entry.key] ?? 0) - entry.value;
+    }
+
+    for (var entry in netDeltas.entries) {
+      if (entry.value != 0) {
+        updates['netBalances.${entry.key}'] = FieldValue.increment(entry.value);
+      }
+    }
+
+    batch.update(_groupDoc(groupId), updates);
+    await batch.commit();
   }
 
   Future<void> deleteExpense({
     required String groupId,
-    required String expenseId,
+    required Expense expense,
   }) async {
-    await _expensesCol(groupId).doc(expenseId).delete();
-    await _groupDoc(groupId).set(
-      {'updatedAt': FieldValue.serverTimestamp()},
-      SetOptions(merge: true),
-    );
+    final batch = _firestore.batch();
+    batch.delete(_expensesCol(groupId).doc(expense.id));
+    
+    // Revert aggregated balances
+    final Map<String, dynamic> updates = {
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    
+    final Map<String, int> netDeltas = {};
+    // Revert Payer Impact
+    netDeltas[expense.payerId] = (netDeltas[expense.payerId] ?? 0) - expense.amount;
+    // Revert Shares Impact
+    for (var entry in expense.shares.entries) {
+      netDeltas[entry.key] = (netDeltas[entry.key] ?? 0) + entry.value;
+    }
+
+    for (var entry in netDeltas.entries) {
+      if (entry.value != 0) {
+        updates['netBalances.${entry.key}'] = FieldValue.increment(entry.value);
+      }
+    }
+    batch.update(_groupDoc(groupId), updates);
+    
+    await batch.commit();
   }
 
   // ─── Settlement CRUD ───────────────────────────────────────────────────
@@ -388,22 +673,74 @@ class AppState extends ChangeNotifier {
     required String groupId,
     required SettlementRecord record,
   }) async {
-    await _settlementsCol(groupId).add(record.toJson());
-    await _groupDoc(groupId).set(
-      {'updatedAt': FieldValue.serverTimestamp()},
-      SetOptions(merge: true),
-    );
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    // Settlements always start as 'pending' through the UI flow.
+    // They do NOT update balances until confirmed by the receiver.
+    final recordData = record.toJson();
+    recordData['createdBy'] = user.uid;
+    recordData['status'] = SettlementStatus.pending.name;
+
+    await _settlementsCol(groupId).add(recordData);
+    
+    // Touch group for activity feed
+    await _groupDoc(groupId).update({'updatedAt': FieldValue.serverTimestamp()});
+  }
+
+  Future<void> confirmSettlement({
+    required String groupId,
+    required SettlementRecord record,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    if (record.status == SettlementStatus.confirmed) return;
+
+    final batch = _firestore.batch();
+    
+    // 1. Mark as confirmed
+    batch.update(_settlementsCol(groupId).doc(record.id), {
+      'status': SettlementStatus.confirmed.name,
+      'confirmedAt': FieldValue.serverTimestamp(),
+    });
+    
+    // 2. Update aggregated balances: payer (from) up, payee (to) down
+    batch.update(_groupDoc(groupId), {
+      'updatedAt': FieldValue.serverTimestamp(),
+      'netBalances.${record.fromMemberId}': FieldValue.increment(record.amount),
+      'netBalances.${record.toMemberId}': FieldValue.increment(-record.amount),
+    });
+    
+    await batch.commit();
+  }
+
+  Future<void> disputeSettlement({
+    required String groupId,
+    required String settlementId,
+  }) async {
+    await _settlementsCol(groupId).doc(settlementId).update({
+      'status': SettlementStatus.disputed.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> deleteSettlement({
     required String groupId,
-    required String settlementId,
+    required SettlementRecord record,
   }) async {
-    await _settlementsCol(groupId).doc(settlementId).delete();
-    await _groupDoc(groupId).set(
-      {'updatedAt': FieldValue.serverTimestamp()},
-      SetOptions(merge: true),
-    );
+    final batch = _firestore.batch();
+    batch.delete(_settlementsCol(groupId).doc(record.id));
+    
+    // Only revert aggregated balances if it was previously confirmed
+    if (record.status == SettlementStatus.confirmed) {
+      batch.update(_groupDoc(groupId), {
+        'updatedAt': FieldValue.serverTimestamp(),
+        'netBalances.${record.fromMemberId}': FieldValue.increment(-record.amount),
+        'netBalances.${record.toMemberId}': FieldValue.increment(record.amount),
+      });
+    }
+    
+    await batch.commit();
   }
 
   // ─── Validation ────────────────────────────────────────────────────────
