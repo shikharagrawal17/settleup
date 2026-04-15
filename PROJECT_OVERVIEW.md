@@ -1,6 +1,6 @@
 # SettleUp Lite: Project Architecture & Status
 
-This document provides a distilled overview of the current system state, design decisions, and architectural implementation as of the completion of **Phase 5: Production Hardening & UI Overhaul**.
+This document provides a distilled overview of the current system state, design decisions, and architectural implementation.
 
 ## 核心 (Core) Architecture
 - **Tech Stack**: Flutter + Firebase (Firestore/Auth/Messaging/Functions logic).
@@ -15,13 +15,13 @@ This document provides a distilled overview of the current system state, design 
 
 ## 🛠️ Key Features
 1. **Real-Time Synchronization**: All views use Firestore `snapshots()` for instant group updates.
-2. **Simplified Debts (Phase 2)**: Greedy minimization algorithm reduces settlement clutter.
-3. **Smart Analytics (Phase 3)**:
+2. **Simplified Debts**: Greedy minimization algorithm reduces settlement clutter.
+3. **Smart Analytics**:
    - **Auto-Categories**: NLP-lite detection of expense categories from descriptions with manual override persistence.
    - **Visual Dashboard**: Category-wise bar chart breakdown of group spending.
-4. **Push Notifications (Phase 4)**: FCM-ready frontend with server-side logic guide provided.
+4. **Push Notifications**: FCM-ready frontend with server-side logic guide provided.
 5. **UPI Automation**: Deep-linking to GPay/PhonePe/Paytm with automated confirmation flow.
-6. **Production Hardening (Phase 5)**: 
+6. **Production Hardening**: 
    - **Responsive Redesign**: Zero-overflow, vertical-stack Expense modal.
    - **Stability Fixes**: Resolved `BoxConstraints` infinite width crashes and `Null check` errors during member-delta operations.
    - **Financial Integrity**: Improved rounding logic for percentage/multiplier splits.

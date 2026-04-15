@@ -31,13 +31,13 @@ Designed for the Indian market, making settlements friction-free.
 *   **QR Generator**: Each transaction generates a dynamic QR code for easy scanning.
 
 ### 🛡️ Production & Stability
-*   **Phase 5 Hardening**: Completely overhauled the Add/Edit Expense modal with a zero-overflow vertical-stack architecture, ensuring perfect responsiveness down to 280px.
+*   **Hardened Modal UI**: Completely overhauled the Add/Edit Expense modal with a zero-overflow vertical-stack architecture, ensuring perfect responsiveness down to 280px.
 *   **Stability & Reliability**: Resolved critical Material 3 rendering crashes (infinite width constraints) and implemented null-safe logic for evolving group member lists.
 *   **Financial Precision**: Hardened split calculations for Percentage and Share modes with intelligent rounding to ensure group balances always sum correctly.
 *   **Profile Guard**: Mandatory onboarding for missing Firestore records to ensure data integrity across all screens.
 *   **Democratic Governance**: Shared group management where any member can contribute; ownership is fluid with automatic succession.
 *   **Balance Locks**: Structural safety prevents member removal or group closure until all balances are exactly ₹0.
-*   **Push Notifications (Phase 4)**: Integrated FCM infrastructure for real-time activity and payment verification alerts.
+*   **Push Notifications**: Integrated FCM infrastructure for real-time activity and payment verification alerts.
 
 ---
 
