@@ -30,13 +30,14 @@ Designed for the Indian market, making settlements friction-free.
 *   **Two-Way Confirmation**: Payments are recorded as `pending` and only update balances once the receiver confirms receipt.
 *   **QR Generator**: Each transaction generates a dynamic QR code for easy scanning.
 
-### 🛡️ Production Hardening (Phase 5)
-*   **Zero-Overflow Redesign**: Completely overhauled the Add/Edit Expense UI with a vertical-stack architecture, ensuring a perfect fit on narrow devices (down to 280px).
-*   **Stability & Reliability**: Resolved critical rendering crashes (infinite width constraints) and null-safe data handling for groups with evolving member lists.
+### 🛡️ Production & Stability
+*   **Phase 5 Hardening**: Completely overhauled the Add/Edit Expense modal with a zero-overflow vertical-stack architecture, ensuring perfect responsiveness down to 280px.
+*   **Stability & Reliability**: Resolved critical Material 3 rendering crashes (infinite width constraints) and implemented null-safe logic for evolving group member lists.
 *   **Financial Precision**: Hardened split calculations for Percentage and Share modes with intelligent rounding to ensure group balances always sum correctly.
-*   **Profile Guard**: Mandatory onboarding for missing Firestore records to ensure data integrity.
-*   **Balance Locks**: Members cannot be removed from a group until their balance is ₹0.
-*   **Push Notifications**: Integrated FCM infrastructure for real-time activity and payment alerts.
+*   **Profile Guard**: Mandatory onboarding for missing Firestore records to ensure data integrity across all screens.
+*   **Democratic Governance**: Shared group management where any member can contribute; ownership is fluid with automatic succession.
+*   **Balance Locks**: Structural safety prevents member removal or group closure until all balances are exactly ₹0.
+*   **Push Notifications (Phase 4)**: Integrated FCM infrastructure for real-time activity and payment verification alerts.
 
 ---
 
