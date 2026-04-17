@@ -2415,7 +2415,10 @@ class _TransactionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCurrentUserDebtor = transaction.fromMemberId == currentUserId;
     final isCurrentUserCreditor = transaction.toMemberId == currentUserId;
-    final canPay = transaction.payeeUpiId != null && isCurrentUserDebtor;
+    final hasTargetUpi = transaction.payeeUpiId != null && 
+                          transaction.payeeUpiId!.trim().isNotEmpty && 
+                          transaction.payeeUpiId!.contains('@');
+    final canPay = hasTargetUpi && isCurrentUserDebtor;
 
     final qrData = canPay
         ? generateUpiLink(

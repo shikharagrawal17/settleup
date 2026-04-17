@@ -17,7 +17,11 @@ class UserProfile {
   final String? photoUrl;
   final bool isPhoneVerified;
 
-  bool get hasUpiId => upiId.trim().isNotEmpty;
+  bool get hasUpiId {
+    final trimmed = upiId.trim();
+    // A valid UPI ID must contain an @ and have content
+    return trimmed.isNotEmpty && trimmed.contains('@');
+  }
   bool get hasPhoneNumber =>
       phoneNumber != null && phoneNumber!.trim().isNotEmpty;
 

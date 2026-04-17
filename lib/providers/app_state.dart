@@ -264,7 +264,12 @@ class AppState extends ChangeNotifier {
       'photoUrl': photoUrl,
       'updatedAt': FieldValue.serverTimestamp(),
     };
-    if (upiId != null) data['upiId'] = upiId.trim();
+    if (upiId != null) {
+      final trimmed = upiId.trim();
+      if (trimmed.isNotEmpty && trimmed.contains('@')) {
+        data['upiId'] = trimmed;
+      }
+    }
     if (phoneNumber != null) data['phoneNumber'] = normalisePhone(phoneNumber);
     await _publicUserDoc(uid).set(data, SetOptions(merge: true));
   }
@@ -274,28 +279,24 @@ class AppState extends ChangeNotifier {
   Stream<Map<String, UserProfile>> profilesStream(List<String> identifiers) {
     if (identifiers.isEmpty) return Stream.value({});
     
-    // We query both by Document ID (uid) and by phoneNumber field.
-    // Since Firestore doesn't support 'whereInField' across different fields easily with OR,
-    // we'll split identifiers into UIDs and Phones.
-    final uids = identifiers.where((id) => !id.startsWith('+91')).toList();
-    final phones = identifiers.where((id) => id.startsWith('+91')).toList();
-
     return _firestore
         .collection('publicUsers')
-        .snapshots() // For small groups, we can listen to the whole collection or better query by some criteria.
+        .snapshots()
         .map((snap) {
       final Map<String, UserProfile> result = {};
       for (final doc in snap.docs) {
         final profile = UserProfile.fromJson(doc.id, doc.data());
-        final pPhone = profile.phoneNumber != null ? normalisePhone(profile.phoneNumber!) : null;
-
-        // Does this profile match any of our requested identifiers?
-        if (identifiers.contains(doc.id) || (pPhone != null && identifiers.contains(pPhone))) {
-          // If multiple identifiers match (e.g. we have both UID and Phone), 
-          // we map BOTH to this profile for resolution.
+        
+        // Match by UID (doc ID)
+        if (identifiers.contains(doc.id)) {
           result[doc.id] = profile;
-          if (pPhone != null) {
-            result[pPhone] = profile;
+        }
+
+        // Match by Normalised Phone Number
+        if (profile.phoneNumber != null) {
+          final pPhone = normalisePhone(profile.phoneNumber!);
+          if (identifiers.contains(pPhone)) {
+             result[pPhone] = profile;
           }
         }
       }
@@ -876,17 +877,24 @@ class AppState extends ChangeNotifier {
     var updatedMembers = <GroupMember>[];
 
     for (var m in members) {
+      // Normalise phone numbers for accurate matching
+      final mPhone = m.phoneNumber != null ? normalisePhone(m.phoneNumber!) : null;
+      final profilePhone = profile.phoneNumber != null ? normalisePhone(profile.phoneNumber!) : null;
+
       // Find the entry that represents "me" (either by UID or by phone number)
-      final isMe = m.id == profile.uid || (m.phoneNumber != null && m.phoneNumber == profile.phoneNumber);
+      final isMe = m.id == profile.uid || (profilePhone != null && mPhone == profilePhone);
       
       if (isMe) {
         // Does the stored info match our current live profile?
         final nameMatch = m.name == profile.displayName;
         final upiMatch = m.upiId == profile.upiId;
-        final phoneMatch = m.phoneNumber == profile.phoneNumber;
+        final phoneMatch = mPhone == profilePhone;
         final idMatch = m.id == profile.uid;
 
-        if (!nameMatch || !upiMatch || !phoneMatch || !idMatch) {
+        // Ensure we actually have a valid UPI ID before claiming everything is fine
+        final hasValidUpi = profile.hasUpiId;
+
+        if (!nameMatch || !upiMatch || !phoneMatch || !idMatch || (upiMatch && !hasValidUpi)) {
           updatedMembers.add(GroupMember(
             id: profile.uid, // Upgrade ID to UID if it was a phone number
             name: profile.displayName,
