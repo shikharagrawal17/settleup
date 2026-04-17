@@ -74,4 +74,4 @@ flutter run -d ios   # or android
 ---
 
 ## 📄 License
-This project is for educational and personal use. Bharat Dues (fka SettleUp Lite).
+This project is for educational and personal use. Bharat Dues.

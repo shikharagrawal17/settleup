@@ -10,7 +10,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:455221731717:android:9326169d49f47034f364ec",
         "android_client_info": {
-          "package_name": "com.example.settleup_lite"
+          "package_name": "com.example.bharat_dues"
         }
       },
       "oauth_client": [
@@ -18,7 +18,7 @@
           "client_id": "455221731717-n17uken14jlgaef6sotuej401jj1un4k.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.settleup_lite",
+            "package_name": "com.example.bharat_dues",
             "certificate_hash": "58312a82c09ce87434d73a26220bdeac0b20d4a9"
           }
         },
@@ -43,7 +43,7 @@
               "client_id": "455221731717-m0jqkjlss40jnhoa2olhqhgcuqnjgump.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.settleupLite"
+                "bundle_id": "com.example.bharatDues"
               }
             }
           ]

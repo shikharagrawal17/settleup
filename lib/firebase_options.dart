@@ -68,7 +68,7 @@ class DefaultFirebaseOptions {
     storageBucket: 'test-732f2.firebasestorage.app',
     androidClientId: '455221731717-n17uken14jlgaef6sotuej401jj1un4k.apps.googleusercontent.com',
     iosClientId: '455221731717-m0jqkjlss40jnhoa2olhqhgcuqnjgump.apps.googleusercontent.com',
-    iosBundleId: 'com.example.settleupLite',
+    iosBundleId: 'com.example.bharatDues',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -80,7 +80,7 @@ class DefaultFirebaseOptions {
     storageBucket: 'test-732f2.firebasestorage.app',
     androidClientId: '455221731717-n17uken14jlgaef6sotuej401jj1un4k.apps.googleusercontent.com',
     iosClientId: '455221731717-m0jqkjlss40jnhoa2olhqhgcuqnjgump.apps.googleusercontent.com',
-    iosBundleId: 'com.example.settleupLite',
+    iosBundleId: 'com.example.bharatDues',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

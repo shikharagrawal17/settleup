@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "settleup_lite" "\0"
+            VALUE "FileDescription", "bharat_dues" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "settleup_lite" "\0"
+            VALUE "InternalName", "bharat_dues" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "settleup_lite.exe" "\0"
-            VALUE "ProductName", "settleup_lite" "\0"
+            VALUE "OriginalFilename", "bharat_dues.exe" "\0"
+            VALUE "ProductName", "bharat_dues" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
