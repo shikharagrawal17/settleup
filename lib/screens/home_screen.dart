@@ -36,9 +36,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // Feature flag to enable/disable 1-on-1 Friends feature
-  static const bool _enableFriendsFeature = false;
-
   Future<void> _openCreateGroup(
     BuildContext context,
     AppState appState,
@@ -147,113 +144,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _openAddFriend(
-      BuildContext context, AppState appState, UserProfile profile, List<SettlementGroup> existingGroups) async {
-    final contactCtrl = TextEditingController();
-    final nameCtrl = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    UserProfile? fetchedProfile;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (sheetContext, setSheetState) {
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                  16, 0, 16, MediaQuery.of(sheetContext).viewInsets.bottom + 16),
-              child: AppSurface(
-                child: Form(
-                  key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SectionHeading(
-                        title: 'Add Friend',
-                        subtitle: 'Start a 1-on-1 split. Enter email or phone.',
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: contactCtrl,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(
-                          labelText: 'Phone Number or Email',
-                          prefixIcon: Icon(Icons.contact_mail_outlined),
-                        ),
-                        onChanged: (v) async {
-                          if (v.length < 5) return;
-                          final user = await appState.lookupUserByContact(v);
-                          if (user != null) {
-                            if (!sheetContext.mounted) return;
-                            setSheetState(() {
-                              fetchedProfile = user;
-                              if (nameCtrl.text.isEmpty) nameCtrl.text = user.displayName;
-                            });
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: nameCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Friend\'s Name',
-                          prefixIcon: Icon(Icons.person_outline),
-                        ),
-                        validator: (v) => (v ?? '').trim().isEmpty ? 'Enter a name' : null,
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: () async {
-                            if (!formKey.currentState!.validate()) return;
-                            
-                            // Fix 4: De-duplication check
-                            if (fetchedProfile != null) {
-                              final duplicate = existingGroups.where((g) => 
-                                g.isNonGroup && g.members.any((m) => m.id == fetchedProfile!.uid)
-                              ).firstOrNull;
-                              
-                              if (duplicate != null) {
-                                if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('${fetchedProfile!.displayName} is already your friend!')),
-                                );
-                                return;
-                              }
-                            }
-
-                            final friendMember = GroupMember(
-                              id: fetchedProfile?.uid ?? DateTime.now().millisecondsSinceEpoch.toString(),
-                              name: nameCtrl.text.trim(),
-                              phoneNumber: fetchedProfile == null && !contactCtrl.text.contains('@') ? contactCtrl.text.trim() : fetchedProfile?.phoneNumber,
-                              upiId: fetchedProfile?.upiId,
-                            );
-
-                            await appState.createGroup(
-                              profile: profile,
-                              name: 'NonGroup',
-                              members: [friendMember],
-                              isNonGroup: true,
-                            );
-                            if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-                          },
-                          child: const Text('Add Friend'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   Future<void> _handleDeleteGroup(AppState appState, String groupId, String groupName) async {
     await appState.deleteGroup(groupId);
     if (!mounted) return;
@@ -277,19 +167,20 @@ class _HomeScreenState extends State<HomeScreen> {
     final profile = widget.profile;
 
     return StreamBuilder<List<SettlementGroup>>(
-          stream: appState.groupsStream(uid: widget.user.uid, phoneNumber: profile.phoneNumber),
-          builder: (context, groupSnapshot) {
-            if (groupSnapshot.hasError) {
-              return Scaffold(body: Center(child: Text('Error: ${groupSnapshot.error}')));
-            }
+      stream: appState.groupsStream(uid: profile.uid, phoneNumber: profile.phoneNumber),
+      builder: (context, groupSnapshot) {
+        final groups = groupSnapshot.data ?? const <SettlementGroup>[];
+        final regularGroups = groups.where((g) => !g.isNonGroup).toList();
 
-            final groups = groupSnapshot.data ?? const <SettlementGroup>[];
-            final friends = groups.where((g) => g.isNonGroup).toList();
-            final regularGroups = groups.where((g) => !g.isNonGroup).toList();
-
-            return Scaffold(
+        return Scaffold(
               appBar: AppBar(
-                title: const Text('SettleUp'),
+                title: Row(
+                  children: [
+                    Image.asset('assets/images/logo.png', height: 28),
+                    const SizedBox(width: 10),
+                    const Text('Bharat Dues'),
+                  ],
+                ),
                 actions: [
                   IconButton(
                     onPressed: () => _editProfile(context, appState, profile),
@@ -305,14 +196,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (_enableFriendsFeature)
-                    FloatingActionButton.small(
-                      heroTag: 'addFriend',
-                      onPressed: () => _openAddFriend(context, appState, profile, groups),
-                      child: const Icon(Icons.person_add_alt_1),
-                    ),
-                  if (_enableFriendsFeature)
-                    const SizedBox(height: 12),
                   FloatingActionButton.extended(
                     heroTag: 'addGroup',
                     onPressed: () => _openCreateGroup(context, appState, profile),
@@ -330,26 +213,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         _DashboardSummary(
                           profile: profile,
-                          groups: _enableFriendsFeature ? groups : regularGroups,
+                          groups: regularGroups,
                           onEditProfile: () => _editProfile(context, appState, profile),
                         ),
-                        if (_enableFriendsFeature) ...[
-                          const SizedBox(height: 24),
-                          const SectionHeading(
-                            title: 'Friends',
-                            subtitle: 'Your 1-on-1 expenses and balances.',
-                          ),
-                          const SizedBox(height: 14),
-                          if (friends.isEmpty)
-                            _AddFirstFriend(onTap: () => _openAddFriend(context, appState, profile, groups))
-                          else
-                            _GroupList(
-                              groups: friends,
-                              profile: profile,
-                              currentUserId: widget.user.uid,
-                              onDelete: (id) => _handleDeleteGroup(appState, id, friends.firstWhere((g) => g.id == id).name),
-                            ),
-                        ],
                         const SizedBox(height: 24),
                         const SectionHeading(
                           title: 'Your Groups',
@@ -391,7 +257,7 @@ class _DashboardSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final appState = context.read<AppState>();
 
-    return FutureBuilder<Map<String, int>>(
+    return FutureBuilder<Map<String, double>>(
       future: _calculateTotalBalances(appState, groups, profile.uid),
       builder: (context, snapshot) {
         final data = snapshot.data ?? {'net': 0, 'owe': 0, 'owed': 0};
@@ -445,7 +311,7 @@ class _DashboardSummary extends StatelessWidget {
                     style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
                   const SizedBox(height: 8),
                   Text(
-                    '₹${net.abs()}',
+                    '₹${formatAmount(net.abs())}',
                     style: TextStyle(
                       fontSize: 38,
                       fontWeight: FontWeight.w900,
@@ -455,9 +321,9 @@ class _DashboardSummary extends StatelessWidget {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      _MiniBalance(label: 'YOU OWE', amount: '₹$owe', color: Colors.redAccent),
-                      const SizedBox(width: 24),
-                      _MiniBalance(label: 'YOU ARE OWED', amount: '₹$owed', color: const Color(0xFF4ADE80)),
+                      Expanded(child: _MiniBalance(label: 'YOU OWE', amount: '₹${formatAmount(owe)}', color: Colors.redAccent)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _MiniBalance(label: 'YOU ARE OWED', amount: '₹${formatAmount(owed)}', color: const Color(0xFF4ADE80))),
                     ],
                   ),
                 ],
@@ -488,9 +354,9 @@ class _DashboardSummary extends StatelessWidget {
     );
   }
 
-  Future<Map<String, int>> _calculateTotalBalances(AppState appState, List<SettlementGroup> groups, String uid) async {
-    int totalOwe = 0;
-    int totalOwed = 0;
+  Future<Map<String, double>> _calculateTotalBalances(AppState appState, List<SettlementGroup> groups, String uid) async {
+    double totalOwe = 0;
+    double totalOwed = 0;
 
     for (final group in groups) {
       final expenses = await appState.expensesStream(group.id).first;
@@ -571,14 +437,6 @@ class _GroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String displayName = group.name;
-    if (group.isNonGroup) {
-      final otherMember = group.members.firstWhere(
-        (m) => m.id != currentUserId,
-        orElse: () => group.members.first,
-      );
-      final appState = context.read<AppState>();
-      displayName = appState.resolveMemberName(otherMember);
-    }
 
     return InkWell(
       onTap: onOpen,
@@ -612,7 +470,7 @@ class _GroupCard extends StatelessWidget {
                   Text(displayName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
                   const SizedBox(height: 4),
                   Text(
-                    group.isNonGroup ? '1-on-1' : '${group.members.length} members',
+                    '${group.members.length} members',
                     style: const TextStyle(color: Colors.white38, fontSize: 13),
                   ),
                 ],
@@ -718,28 +576,7 @@ class _ReadOnlyField extends StatelessWidget {
   }
 }
 
-class _AddFirstFriend extends StatelessWidget {
-  const _AddFirstFriend({required this.onTap});
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: AppSurface(
-        child: const Row(
-          children: [
-            Icon(Icons.person_add_alt_1, color: kAccent),
-            SizedBox(width: 12),
-            Text('Add your first friend to start splitting'),
-            Spacer(),
-            Icon(Icons.arrow_forward_ios, size: 12, color: Colors.white24),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// Unused widgets removed
 
 class _EmptyGroups extends StatelessWidget {
   const _EmptyGroups({required this.onCreate});

@@ -52,7 +52,9 @@ class _SignInScreenState extends State<SignInScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 120),
+                  const SizedBox(height: 60),
+                  Image.asset('assets/images/logo.png', height: 100),
+                  const SizedBox(height: 40),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(

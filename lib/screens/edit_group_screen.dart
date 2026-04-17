@@ -37,7 +37,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final List<_MemberDraft> _members;
-  late final Map<String, int> _balances;
+  late final Map<String, double> _balances;
 
   @override
   void initState() {
@@ -65,13 +65,13 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
   bool _canRemove(String memberId) {
     // Democracy: anyone can remove (Fix 1 updated).
     // Balance check still applies (Fix 2).
-    return (_balances[memberId] ?? 0) == 0;
+    return (_balances[memberId] ?? 0.0) == 0;
   }
 
   void _removeMember(int index) {
     final draft = _members[index];
     if (!_canRemove(draft.id)) {
-      final balance = _balances[draft.id] ?? 0;
+      final balance = _balances[draft.id] ?? 0.0;
       final msg = balance > 0
           ? '${draft.nameController.text} is owed ₹$balance. Settle first.'
           : '${draft.nameController.text} owes ₹${balance.abs()}. Settle first.';
@@ -228,8 +228,6 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isOwner = widget.group.createdBy == widget.currentUserId;
-
     return Scaffold(
       appBar: AppBar(title: const Text('Edit Group')),
       body: AppBackdrop(
@@ -285,7 +283,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                     children: _members.asMap().entries.map((entry) {
                       final index = entry.key;
                       final draft = entry.value;
-                      final balance = _balances[draft.id] ?? 0;
+                      final balance = _balances[draft.id] ?? 0.0;
                       final canRemove = _canRemove(draft.id);
 
                       return Padding(
@@ -301,7 +299,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                           onRemove: () => _removeMember(index),
                           trailing: balance != 0
                               ? Text(
-                                  balance > 0 ? '+₹$balance' : '−₹${balance.abs()}',
+                                  balance > 0 ? '+₹${formatAmount(balance)}' : '−₹${formatAmount(balance.abs())}',
                                   style: TextStyle(
                                     color: balance > 0 ? const Color(0xFF4ADE80) : Colors.redAccent,
                                     fontWeight: FontWeight.w700,

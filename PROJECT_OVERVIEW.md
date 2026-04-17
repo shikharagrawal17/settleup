@@ -1,43 +1,43 @@
-# SettleUp Lite: Project Architecture & Status
+# Bharat Dues: Project Architecture & Status
 
-This document provides a distilled overview of the current system state, design decisions, and architectural implementation.
+This document provides a distilled overview of the current system state, design decisions, and architectural implementation as of the production-grade rebranding.
 
 ## 核心 (Core) Architecture
-- **Tech Stack**: Flutter + Firebase (Firestore/Auth/Messaging/Functions logic).
-- **Dual-Authentication**: 
-  - **Google Login**: Primary OAuth-based sign-in.
-  - **Phone OTP**: (Experimental/Disabled) Infrastructure ready for number-verified onboarding.
+- **Tech Stack**: Flutter + Firebase (Firestore/Auth/Messaging).
+- **Multi-Platform Support**: Optimized for **Android**, **iOS**, **macOS**, and **Web**.
+- **Financial Precision**: Migrated to a **double-precision** system supporting 2-decimal currency values with epsilon-based rounding for perfect balance matching.
+- **Authentication**: 
+  - **Google Login**: Primary OAuth-based sign-in (Cross-platform GSI integration).
+  - **Phone Discovery**: Users see groups they were invited to via phone number immediately upon registration.
 - **Data Model**:
-  - `groups/{groupId}`: Main document containing members, net balances, and metadata.
-  - `groups/{groupId}/expenses`: Activity log with category auto-persistence.
-  - `groups/{groupId}/settlements`: Two-way confirmation payment tracking.
-  - `users/{uid}`: Profile with normalized phone, UPI ID, and FCM tokens.
+  - `groups/{groupId}`: Main document containing members, high-precision `netBalances`, and metadata.
+  - `groups/{groupId}/expenses`: Activity log documenting every spend with granular "Changed Fields" auditing.
+  - `groups/{groupId}/settlements`: Two-way confirmation payment tracking with UPI integration.
+  - `users/{uid}`: Profile with normalized identifiers and FCM tokens.
 
 ## 🛠️ Key Features
-1. **Real-Time Synchronization**: All views use Firestore `snapshots()` for instant group updates.
-2. **Simplified Debts**: Greedy minimization algorithm reduces settlement clutter.
-3. **Smart Analytics**:
-   - **Auto-Categories**: NLP-lite detection of expense categories from descriptions with manual override persistence.
-   - **Visual Dashboard**: Category-wise bar chart breakdown of group spending.
-4. **Push Notifications**: FCM-ready frontend with server-side logic guide provided.
-5. **UPI Automation**: Deep-linking to GPay/PhonePe/Paytm with automated confirmation flow.
-6. **Production Hardening**: 
-   - **Responsive Redesign**: Zero-overflow, vertical-stack Expense modal.
-   - **Stability Fixes**: Resolved `BoxConstraints` infinite width crashes and `Null check` errors during member-delta operations.
-   - **Financial Integrity**: Improved rounding logic for percentage/multiplier splits.
+1. **Premium Fintech UI**: Immersive dark-mode design with glassmorphism, responsive modals, and scrollable confirmation sheets.
+2. **Real-Time Sync**: Firestore-backed streams ensure all invited members see updates instantly.
+3. **Simplified Settlement**: greedy minimization algorithms reduce group debts to the fewest possible transactions.
+4. **Smart Expense Logic**: 
+   - Supports fixed amount and percentage-based splitting.
+   - Granular Activity Logs showing exactly what changed during an edit (e.g., "amount from ₹10 to ₹20").
+5. **UPI Automation**: Deep-linking for instant payments; manual recording for cash settlements.
+6. **Robust Data Validation**: Epsilon-based equality checks (`(a-b).abs() < 0.01`) ensure financial integrity across platforms.
 
 ## 🛡️ Security & Integrity
-- **Profile Guard**: Automated redirection to onboarding if user document is deleted or missing.
-- **Democratic Ownership**: Shared group management with automated leadership succession.
-- **Balance Lock**: Prevents data fragmentation by locking member removal until balance is ₹0.
-- **Aggregated Performance**: Server-side map of `netBalances` avoids O(N) client-side calculations.
-
-## 🚀 Dev Info
-- `_enableFriendsFeature` (@ `lib/screens/home_screen.dart`): Toggles 1-on-1 Friends dashboard.
-- `firestore.rules`: Membership-based access control and event-creator deletion locks.
-- **Rendering**: Using Impeller (Vulkan) for smooth animations and transitions.
+- **Membership Guard**: Firestore Rules restrict data access only to active group members.
+- **Balance Integrity**: Prevents member removal if their net balance is not exactly ₹0.00.
+- **Precision Validation**: All inputs are sanitized for double-precision compatibility.
 
 ## 📂 Architecture Map
-- `lib/providers/app_state.dart`: Centralized logic (Single Source of Truth).
-- `lib/utils/settlement_helper.dart`: The core financial engine.
-- `lib/screens/app_shell.dart`: The global session & profile guard router.
+- `lib/providers/app_state.dart`: Centralized Single Source of Truth; handles all multi-document Firestore transactions.
+- `lib/utils/settlement_helper.dart`: The core financial engine and debt-minimization algorithm.
+- `lib/utils/upi_helper.dart`: Cross-platform UPI link generator.
+- `lib/screens/group_settlement_screen.dart`: The primary dashboard for group activity and financial tracking.
+- `lib/main.dart`: Global theme definition (`BharatDuesApp`) and platform-specific initialization.
+
+## 🚀 Status
+- **Android/Web**: Fully configured and verified.
+- **iOS/macOS**: `Info.plist` and `GoogleService-Info.plist` configured for OAuth and URL schemes.
+- **Finance**: 100% migrated from integer to double precision.

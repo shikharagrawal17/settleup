@@ -10,11 +10,11 @@ import 'widgets/app_shell_widgets.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const SettleUpLiteApp());
+  runApp(const BharatDuesApp());
 }
 
-class SettleUpLiteApp extends StatelessWidget {
-  const SettleUpLiteApp({super.key});
+class BharatDuesApp extends StatelessWidget {
+  const BharatDuesApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +31,7 @@ class SettleUpLiteApp extends StatelessWidget {
           ],
           child: MaterialApp(
             debugShowCheckedModeBanner: false,
-            title: 'SettleUp Lite',
+            title: 'Bharat Dues',
             theme: _buildTheme(),
             home: _buildHome(snapshot),
           ),

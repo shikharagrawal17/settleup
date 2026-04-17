@@ -58,9 +58,9 @@ class Expense {
 
   final String id;
   final String description;
-  final int amount;
+  final double amount;
   final String payerId;
-  final Map<String, int> shares;
+  final Map<String, double> shares;
   final DateTime createdAt;
   final String createdBy;
   final ExpenseCategory? category;
@@ -84,7 +84,7 @@ class Expense {
   factory Expense.fromJson(String id, Map<String, dynamic> json) {
     final sharesRaw = json['shares'] as Map<String, dynamic>? ?? {};
     final shares = sharesRaw.map(
-      (key, value) => MapEntry(key, (value as num).toInt()),
+      (key, value) => MapEntry(key, (value as num).toDouble()),
     );
 
     DateTime createdAt;
@@ -106,7 +106,7 @@ class Expense {
     return Expense(
       id: id,
       description: json['description'] as String? ?? 'Expense',
-      amount: (json['amount'] as num?)?.toInt() ?? 0,
+      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
       payerId: json['payerId'] as String? ?? '',
       shares: shares,
       createdAt: createdAt,

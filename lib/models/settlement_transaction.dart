@@ -13,7 +13,7 @@ class SettlementTransaction {
   final String fromName;
   final String toMemberId;
   final String toName;
-  final int amount;
+  final double amount;
   final String? payeeUpiId;
   final String? payerPhoneNumber;
 }

@@ -9,7 +9,7 @@ bool isValidUpiId(String value) {
 String generateUpiLink({
   required String upiId,
   required String payeeName,
-  required int amount,
+  required double amount,
 }) {
   final encodedName = Uri.encodeComponent(payeeName);
   return 'upi://pay?pa=$upiId&pn=$encodedName&am=$amount&cu=INR';

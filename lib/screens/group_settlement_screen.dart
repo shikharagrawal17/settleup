@@ -1,5 +1,4 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -12,6 +11,7 @@ import '../models/settlement_group.dart';
 import '../models/settlement_record.dart';
 import '../models/settlement_transaction.dart';
 import '../models/user_profile.dart';
+import '../models/activity_log.dart';
 import '../providers/app_state.dart';
 import '../utils/settlement_helper.dart';
 import '../utils/upi_helper.dart';
@@ -53,7 +53,6 @@ class GroupSettlementScreen extends StatefulWidget {
 
 class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
   late SettlementGroup _group;
-  bool _simplifyDebts = true;
   bool _isSearching = false;
   final _searchController = TextEditingController();
   String _searchQuery = '';
@@ -114,7 +113,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
      );
   }
 
-  void _openBalancesSheet(BuildContext context, Map<String, int> balances, List<SettlementTransaction> transactions, List<GroupMember> resolvedMembers) {
+  void _openBalancesSheet(BuildContext context, Map<String, double> balances, List<SettlementTransaction> transactions, List<GroupMember> resolvedMembers) {
      showModalBottomSheet<void>(
        context: context,
        isScrollControlled: true,
@@ -186,51 +185,118 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
 
     if (launched) {
       if (!mounted) return;
-      
-      // Since UPI apps don't return a status callback, we ask the user to confirm success.
-      final confirmed = await showDialog<bool>(
+
+      // Immersive Confirmation UI - Fintech Style
+      final confirmed = await showModalBottomSheet<bool>(
         context: context,
-        barrierDismissible: false,
-        builder: (ctx) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: AppSurface(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => SafeArea(
+          child: SingleChildScrollView(
+            child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1A1A1A),
+            borderRadius: BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Rupee Seal
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: kAccent.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: kAccent.withValues(alpha: 0.2), width: 2),
+                ),
+                child: const Center(
+                  child: Text('₹', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: kAccent)),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text('Payment Confirmation', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: -0.5)),
+              const SizedBox(height: 8),
+              Text(
+                'Verify your bank transfer details',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 13),
+              ),
+              const SizedBox(height: 32),
+              // Transaction Details Card
+              AppSurface(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Amount to Pay', style: TextStyle(color: Colors.white38, fontSize: 13)),
+                        Text('₹${formatAmount(transaction.amount)}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22, color: kAccent)),
+                      ],
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Divider(color: Colors.white10),
+                    ),
+                    Row(
+                      children: [
+                        const Text('Paying to: ', style: TextStyle(color: Colors.white38, fontSize: 13)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            transaction.toName,
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white),
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.right,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              const Text(
+                'By clicking "Confirm & Record", you acknowledge that the funds have been transferred in your UPI app.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white24, fontSize: 11, fontStyle: FontStyle.italic),
+              ),
+              const SizedBox(height: 32),
+              Row(
                 children: [
-                   const Icon(Icons.help_outline, color: kAccent, size: 40),
-                   const SizedBox(height: 16),
-                   const Text('Confirm Payment', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-                   const SizedBox(height: 12),
-                   Text(
-                     'Did you successfully complete the payment of ₹${transaction.amount} in your UPI app?',
-                     textAlign: TextAlign.center,
-                     style: const TextStyle(color: Colors.white70),
-                   ),
-                   const SizedBox(height: 24),
-                   Row(
-                     children: [
-                       Expanded(
-                         child: OutlinedButton(
-                           onPressed: () => Navigator.pop(ctx, false),
-                           child: const Text('No'),
-                         ),
-                       ),
-                       const SizedBox(width: 12),
-                       Expanded(
-                         child: FilledButton(
-                           onPressed: () => Navigator.pop(ctx, true),
-                           child: const Text('Yes, Record'),
-                         ),
-                       ),
-                     ],
-                   )
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white38,
+                        minimumSize: const Size.fromHeight(56),
+                      ),
+                      child: const Text('Did not pay', style: TextStyle(fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: kAccent,
+                        foregroundColor: Colors.black,
+                        minimumSize: const Size.fromHeight(56),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Confirm & Record', style: TextStyle(fontWeight: FontWeight.w900)),
+                    ),
+                  ),
                 ],
               ),
-            ),
+            ],
           ),
         ),
-      );
+      ),
+    ),
+  );
 
       if (confirmed == true && mounted) {
         final record = SettlementRecord(
@@ -281,7 +347,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
       return;
     }
     
-    final message = "Hey ${transaction.fromName}, just a quick nudge to settle up ₹${transaction.amount} for '${_group.name}' on SettleUp! ${transaction.payeeUpiId != null ? 'My UPI is ${transaction.payeeUpiId}. ' : ''}Thanks 💸";
+    final message = "Hey ${transaction.fromName}, just a quick remind to settle up ₹${formatAmount(transaction.amount)} for '${_group.name}' on Bharat Dues! ${transaction.payeeUpiId != null ? 'My UPI is ${transaction.payeeUpiId}. ' : ''}Thanks 💸";
     final url = Uri.parse('whatsapp://send?phone=$phone&text=${Uri.encodeComponent(message)}');
     
     try {
@@ -359,7 +425,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
             void recomputeShares() {
-              final total = int.tryParse(amountCtrl.text.trim()) ?? 0;
+              final total = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
               if (total == 0) return;
 
               final includedMembers = resolvedMembers.where((m) => includedIds.contains(m.id)).toList();
@@ -380,13 +446,13 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                     shareControllers[m.id]!.text = (shares[m.id] ?? 0).toString();
                   }
                 case SplitMode.shares:
-                  final mults = <String, int>{};
+                  final mults = <String, double>{};
                   for (final m in includedMembers) {
-                    mults[m.id] = int.tryParse(multControllers[m.id]!.text.trim()) ?? 1;
+                    mults[m.id] = double.tryParse(multControllers[m.id]!.text.trim()) ?? 1.0;
                   }
                   final shares = buildMultiplierShareMap(total: total, members: includedMembers, multipliers: mults);
                   for (final m in resolvedMembers) {
-                    shareControllers[m.id]!.text = (shares[m.id] ?? 0).toString();
+                    shareControllers[m.id]!.text = formatAmount(shares[m.id] ?? 0.0);
                   }
                 case SplitMode.exact:
                   break; 
@@ -397,9 +463,9 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
               recomputeShares();
             }
 
-            final totalExpense = int.tryParse(amountCtrl.text.trim()) ?? 0;
-            final sumOfShares = shareControllers.values.fold<int>(0, (sum, ctrl) => sum + (int.tryParse(ctrl.text.trim()) ?? 0));
-            final isBalanced = totalExpense == sumOfShares;
+            final totalExpense = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
+            final sumOfShares = shareControllers.values.fold<double>(0, (sum, ctrl) => sum + (double.tryParse(ctrl.text.trim()) ?? 0.0));
+            final isBalanced = (totalExpense - sumOfShares).abs() < 0.01;
             final diff = totalExpense - sumOfShares;
 
             return DraggableScrollableSheet(
@@ -480,7 +546,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                           children: [
                             TextFormField(
                               controller: amountCtrl,
-                              keyboardType: TextInputType.number,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               textAlign: TextAlign.center,
                               style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: kAccent),
                               decoration: const InputDecoration(
@@ -497,13 +563,13 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                 if (splitMode != SplitMode.exact) recomputeShares();
                               }),
                               validator: (v) {
-                                final val = int.tryParse((v ?? '').trim());
+                                final val = double.tryParse((v ?? '').trim());
                                 return (val == null || val <= 0) ? '!' : null;
                               },
                             ),
                             const Divider(height: 32, color: Colors.white10),
                             DropdownButtonFormField<String>(
-                              value: payerId,
+                              initialValue: payerId,
                               dropdownColor: Colors.black87,
                               decoration: const InputDecoration(
                                 labelText: 'Paid By',
@@ -620,7 +686,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                       width: 45,
                                       child: TextFormField(
                                         controller: splitMode == SplitMode.percentage ? pctControllers[m.id] : multControllers[m.id],
-                                        keyboardType: TextInputType.number,
+                                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                         textAlign: TextAlign.center,
                                         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
                                         decoration: InputDecoration(
@@ -638,7 +704,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                     width: 75,
                                     child: TextFormField(
                                       controller: shareControllers[m.id],
-                                      keyboardType: TextInputType.number,
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                       enabled: isIncluded && splitMode == SplitMode.exact,
                                       textAlign: TextAlign.right,
                                       style: TextStyle(
@@ -687,7 +753,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                     ),
                                   ),
                                   Text(
-                                    isBalanced ? 'All shares match total' : 'Remaining: ₹$diff',
+                                    isBalanced ? 'All shares match total' : 'Remaining: ₹${formatAmount(diff)}',
                                     style: TextStyle(
                                       color: isBalanced ? Colors.white : Colors.redAccent,
                                       fontWeight: FontWeight.w800,
@@ -704,21 +770,21 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                               ),
                               onPressed: () async {
                                 if (!formKey.currentState!.validate()) return;
-                                final currentTotal = int.tryParse(amountCtrl.text.trim()) ?? 0;
-                                final currentSum = shareControllers.values.fold<int>(0, (sum, ctrl) => sum + (int.tryParse(ctrl.text.trim()) ?? 0));
+                                final currentTotal = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
+                                final currentSum = shareControllers.values.fold<double>(0, (sum, ctrl) => sum + (double.tryParse(ctrl.text.trim()) ?? 0.0));
                                 
-                                if (currentTotal != currentSum) {
+                                if ((currentTotal - currentSum).abs() >= 0.01) {
                                   ScaffoldMessenger.of(sheetContext).showSnackBar(
                                     SnackBar(
                                       behavior: SnackBarBehavior.floating,
                                       backgroundColor: Colors.redAccent,
-                                      content: Text('Total (₹$currentTotal) ≠ Shares (₹$currentSum)', style: const TextStyle(fontWeight: FontWeight.w800)),
+                                      content: Text('Total (₹${formatAmount(currentTotal)}) ≠ Shares (₹${formatAmount(currentSum)})', style: const TextStyle(fontWeight: FontWeight.w800)),
                                     ),
                                   );
                                   return;
                                 }
 
-                                final shares = { for (final m in resolvedMembers) m.id: int.tryParse(shareControllers[m.id]!.text.trim()) ?? 0 };
+                                final shares = { for (final m in resolvedMembers) m.id: double.tryParse(shareControllers[m.id]!.text.trim()) ?? 0.0 };
                                 
                                 final expense = Expense(
                                   id: initialExpense?.id ?? '',
@@ -782,53 +848,53 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SectionHeading(
-                    title: 'Record Payment',
-                    subtitle: '${transaction.fromName} pays ${transaction.toName}',
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: amountCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
-                    validator: (v) {
-                      final val = int.tryParse((v ?? '').trim());
-                      if (val == null || val <= 0) return 'Enter a valid amount';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: noteCtrl,
-                    decoration: const InputDecoration(labelText: 'Note (optional)'),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () async {
-                        if (!formKey.currentState!.validate()) return;
-                        final record = SettlementRecord(
-                          id: '',
-                          fromMemberId: transaction.fromMemberId,
-                          fromName: transaction.fromName,
-                          toMemberId: transaction.toMemberId,
-                          toName: transaction.toName,
-                          amount: int.parse(amountCtrl.text.trim()),
-                          settledAt: DateTime.now(),
-                          createdBy: widget.profile.uid,
-                          note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
-                        );
-                        await appState.addSettlement(groupId: _group.id, record: record);
-                        if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-                      },
-                      child: const Text('Record Payment'),
+                  children: [
+                    SectionHeading(
+                      title: 'Record Payment',
+                      subtitle: '${transaction.fromName} pays ${transaction.toName}',
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: amountCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
+                      validator: (v) {
+                        final val = double.tryParse((v ?? '').trim());
+                        if (val == null || val <= 0) return 'Enter a valid amount';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: noteCtrl,
+                      decoration: const InputDecoration(labelText: 'Note (optional)'),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () async {
+                          if (!formKey.currentState!.validate()) return;
+                          final record = SettlementRecord(
+                            id: '',
+                            fromMemberId: transaction.fromMemberId,
+                            fromName: transaction.fromName,
+                            toMemberId: transaction.toMemberId,
+                            toName: transaction.toName,
+                                        amount: double.parse(amountCtrl.text.trim()),
+                            settledAt: DateTime.now(),
+                            createdBy: widget.profile.uid,
+                            note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
+                          );
+                          await appState.addSettlement(groupId: _group.id, record: record);
+                          if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                        },
+                        child: const Text('Record Payment'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-             ),
             ),
           ),
         );
@@ -868,10 +934,10 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                   builder: (context, setSnap) {
                     if (setSnap.hasError) return _ErrorScaffold(error: setSnap.error);
                     final settlements = setSnap.data ?? const <SettlementRecord>[];
-                    
+
                     final transactions = simplifyWithSettlements(
                       members: resolvedMembers,
-                                      expenses: expenses,
+                      expenses: expenses,
                       settlements: settlements,
                     );
                     final balances = computeMemberBalances(
@@ -879,28 +945,37 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                       expenses: expenses,
                       settlements: settlements,
                     );
-                    final totalSpent = expenses.fold<int>(0, (s, e) => s + e.amount);
+                    final totalSpent = expenses.fold<double>(0, (s, e) => s + e.amount);
 
-                    final otherMember = resolvedMembers.firstWhere((m) => m.id != _currentUserId, orElse: () => resolvedMembers.first);
+                    final otherMember = resolvedMembers.firstWhere(
+                      (m) => m.id != _currentUserId,
+                      orElse: () => resolvedMembers.first,
+                    );
                     final titleName = _group.isNonGroup ? otherMember.name : _group.name;
 
-                    final myGroupBalance = balances[_currentUserId] ?? 0;
+                    final myGroupBalance = balances[_currentUserId] ?? 0.0;
 
                     return Scaffold(
                       appBar: AppBar(
-                        title: _isSearching 
-                          ? TextField(
-                              controller: _searchController,
-                              autofocus: true,
-                              decoration: const InputDecoration(
-                                hintText: 'Search expenses...',
-                                border: InputBorder.none,
-                                hintStyle: TextStyle(color: Colors.white30),
+                        title: _isSearching
+                            ? TextField(
+                                controller: _searchController,
+                                autofocus: true,
+                                decoration: const InputDecoration(
+                                  hintText: 'Search expenses...',
+                                  border: InputBorder.none,
+                                  hintStyle: TextStyle(color: Colors.white30),
+                                ),
+                                style: const TextStyle(color: Colors.white),
+                                onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
+                              )
+                            : Row(
+                                children: [
+                                  Image.asset('assets/images/logo.png', height: 24),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Text(titleName, overflow: TextOverflow.ellipsis)),
+                                ],
                               ),
-                              style: const TextStyle(color: Colors.white),
-                              onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
-                            )
-                          : Text(titleName),
                         actions: [
                           if (_isSearching)
                             IconButton(
@@ -935,115 +1010,140 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                           ),
                         ],
                       ),
-                      floatingActionButton: Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: FloatingActionButton.extended(
-                          onPressed: () => _openAddEditExpense(appState, resolvedMembers),
-                          icon: const Icon(Icons.receipt_long),
-                          label: const Text('Add Expense'),
-                          elevation: 4,
-                        ),
-                      ),
-                      body: SafeArea(
-                        child: AppBackdrop(
-                          child: Column(
-                            children: [
-                              // ── Group Dashboard Summary ────────────────
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                                child: AppSurface(
-                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                                  child: Column(
+                      body: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                            child: AppSurface(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                myGroupBalance == 0
-                                                    ? 'You are settled up'
-                                                    : myGroupBalance > 0
-                                                        ? 'You are owed'
-                                                        : 'You owe',
-                                                style: const TextStyle(color: Colors.white54, fontSize: 13),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                '₹${myGroupBalance.abs()}',
-                                                style: TextStyle(
-                                                  fontSize: 32,
-                                                  fontWeight: FontWeight.w900,
-                                                  color: myGroupBalance == 0
-                                                      ? Colors.white
-                                                      : myGroupBalance > 0
-                                                          ? const Color(0xFF4ADE80)
-                                                          : Colors.redAccent,
-                                                ),
-                                              ),
-                                            ],
+                                          Text(
+                                            myGroupBalance == 0
+                                                ? 'You are settled up'
+                                                : myGroupBalance > 0
+                                                    ? 'You are owed'
+                                                    : 'You owe',
+                                            style: const TextStyle(color: Colors.white54, fontSize: 13),
                                           ),
-                                          if (!_group.isNonGroup)
-                                            MetricPill(
-                                              label: 'Total Spent',
-                                              value: '₹$totalSpent',
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            '₹${formatAmount(myGroupBalance.abs())}',
+                                            style: TextStyle(
+                                              fontSize: 32,
+                                              fontWeight: FontWeight.w900,
+                                              color: myGroupBalance == 0
+                                                  ? Colors.white
+                                                  : myGroupBalance > 0
+                                                      ? const Color(0xFF4ADE80)
+                                                      : Colors.redAccent,
                                             ),
+                                          ),
                                         ],
                                       ),
-                                      const SizedBox(height: 20),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: FilledButton.icon(
-                                              onPressed: () => _openSettleSheet(context, appState, transactions, memberMap),
-                                              icon: const Icon(Icons.handshake_outlined),
-                                              label: const Text('Settle Up'),
-                                              style: FilledButton.styleFrom(
-                                                backgroundColor: kAccent,
-                                                foregroundColor: Colors.black,
-                                                minimumSize: const Size.fromHeight(48),
-                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                              ),
-                                            ),
+                                      if (!_group.isNonGroup)
+                                        MetricPill(
+                                          label: 'Total Spent',
+                                          value: '₹${formatAmount(totalSpent)}',
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: FilledButton.icon(
+                                          onPressed: () => _openSettleSheet(context, appState, transactions, memberMap),
+                                          icon: const Icon(Icons.handshake_outlined),
+                                          label: const Text('Bharat Dues Summary'),
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: kAccent,
+                                            foregroundColor: Colors.black,
+                                            minimumSize: const Size.fromHeight(48),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                           ),
-                                          if (!_group.isNonGroup) ...[
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: OutlinedButton.icon(
-                                                onPressed: () => _openBalancesSheet(context, balances, transactions, resolvedMembers),
-                                                icon: const Icon(Icons.account_balance_wallet_outlined),
-                                                label: const Text('Balances'),
-                                                style: OutlinedButton.styleFrom(
-                                                  minimumSize: const Size.fromHeight(48),
-                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ],
+                                        ),
                                       ),
                                     ],
                                   ),
-                                ),
+                                ],
                               ),
-                              
-                              Expanded(
-                                child: _ActivityTab(
-                                  expenses: _searchQuery.isEmpty 
-                                    ? expenses 
-                                    : expenses.where((e) => e.description.toLowerCase().contains(_searchQuery)).toList(),
-                                  settlements: settlements,
-                                  resolvedMembers: resolvedMembers,
-                                  onEditExpense: (e) => _openAddEditExpense(appState, resolvedMembers, initialExpense: e),
-                                  appState: appState,
-                                  groupId: _group.id,
-                                  totalSpent: totalSpent,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
+                          Expanded(
+                            child: DefaultTabController(
+                              length: 3,
+                              child: Column(
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                                    child: Container(
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.05),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: TabBar(
+                                        isScrollable: false,
+                                        tabAlignment: TabAlignment.fill,
+                                        dividerColor: Colors.transparent,
+                                        indicator: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(10),
+                                          color: kAccent,
+                                        ),
+                                        indicatorSize: TabBarIndicatorSize.tab,
+                                        labelColor: Colors.black,
+                                        unselectedLabelColor: Colors.white38,
+                                        labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1),
+                                        tabs: const [
+                                          Tab(text: 'EXPENSES'),
+                                          Tab(text: 'ACTIVITY'),
+                                          Tab(text: 'BALANCES'),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: TabBarView(
+                                      children: [
+                                        _ExpensesTab(
+                                          expenses: _searchQuery.isEmpty 
+                                            ? expenses 
+                                            : expenses.where((e) => e.description.toLowerCase().contains(_searchQuery)).toList(),
+                                          settlements: settlements,
+                                          resolvedMembers: resolvedMembers,
+                                          onEditExpense: (e) => _openAddEditExpense(appState, resolvedMembers, initialExpense: e),
+                                          appState: appState,
+                                          groupId: _group.id,
+                                        ),
+                                        _ActivityLogTab(
+                                          groupId: _group.id,
+                                        ),
+                                        _BalancesTab(
+                                          resolvedMembers: resolvedMembers,
+                                          balances: Map<String, double>.from(balances),
+                                          currentUserId: _currentUserId,
+                                          transactions: transactions,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      floatingActionButton: FloatingActionButton.extended(
+                        onPressed: () => _openAddEditExpense(appState, resolvedMembers),
+                        icon: const Icon(Icons.add_rounded, size: 28),
+                        label: const Text('Expense'),
                       ),
                     );
                   },
@@ -1108,18 +1208,13 @@ enum SplitMode {
   }
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// Tab 1: Activity (expenses + settlements in chronological order)
-// ═════════════════════════════════════════════════════════════════════════
-
-class _ActivityTab extends StatelessWidget {
-  const _ActivityTab({
+class _ExpensesTab extends StatelessWidget {
+  const _ExpensesTab({
     required this.expenses,
     required this.settlements,
     required this.resolvedMembers,
     required this.appState,
     required this.groupId,
-    required this.totalSpent,
     required this.onEditExpense,
   });
 
@@ -1128,7 +1223,6 @@ class _ActivityTab extends StatelessWidget {
   final List<GroupMember> resolvedMembers;
   final AppState appState;
   final String groupId;
-  final int totalSpent;
   final Function(Expense) onEditExpense;
 
   @override
@@ -1150,40 +1244,40 @@ class _ActivityTab extends StatelessWidget {
     ]..sort((a, b) => b.date.compareTo(a.date));
 
     // Helper for confirmation
-    Future<void> _showConfirmDelete(BuildContext context, String title, String body, VoidCallback onConfirm) async {
+    Future<void> showConfirmDelete(BuildContext context, String title, String body, VoidCallback onConfirm) async {
        final confirmed = await showDialog<bool>(
-         context: context,
-         builder: (ctx) => Center(
-           child: Padding(
-             padding: const EdgeInsets.all(24.0),
-             child: AppSurface(
-               child: Column(
-                 mainAxisSize: MainAxisSize.min,
-                 children: [
-                   const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 40),
-                   const SizedBox(height: 16),
-                   Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-                   const SizedBox(height: 12),
-                   Text(body, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
-                   const SizedBox(height: 24),
-                   Row(
-                     children: [
-                       Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel'))),
-                       const SizedBox(width: 12),
-                       Expanded(child: FilledButton(
-                         onPressed: () => Navigator.pop(ctx, true), 
-                         style: FilledButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
-                         child: const Text('Delete'),
-                       )),
-                     ],
-                   )
-                 ],
-               ),
-             ),
-           ),
-         ),
-       );
-       if (confirmed == true) onConfirm();
+          context: context,
+          builder: (ctx) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: AppSurface(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 40),
+                    const SizedBox(height: 16),
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                    const SizedBox(height: 12),
+                    Text(body, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel'))),
+                        const SizedBox(width: 12),
+                        Expanded(child: FilledButton(
+                          onPressed: () => Navigator.pop(ctx, true), 
+                          style: FilledButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+                          child: const Text('Delete'),
+                        )),
+                      ],
+                    )
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        if (confirmed == true) onConfirm();
     }
 
     // Group items by month
@@ -1198,9 +1292,13 @@ class _ActivityTab extends StatelessWidget {
       children: [
         if (rawItems.isEmpty)
           const AppSurface(
-            child: Text(
-              'No activity yet. Add an expense or settle up to see things here.',
-              style: TextStyle(color: Colors.white70, height: 1.5),
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Text(
+                'No records yet. Add an expense or settle up to see things here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white38, height: 1.5),
+              ),
             ),
           )
         else
@@ -1212,7 +1310,7 @@ class _ActivityTab extends StatelessWidget {
                     return _ExpenseActivityCard(
                       expense: expense,
                       memberMap: memberMap,
-                      onDelete: () => _showConfirmDelete(
+                      onDelete: () => showConfirmDelete(
                         context,
                         'Delete Expense',
                         'Are you sure you want to remove "${expense.description}"?',
@@ -1227,10 +1325,10 @@ class _ActivityTab extends StatelessWidget {
                       groupId: groupId,
                       appState: appState,
                       memberMap: memberMap,
-                      onDelete: () => _showConfirmDelete(
+                      onDelete: () => showConfirmDelete(
                         context,
                         'Delete Settlement',
-                        'Are you sure you want to remove this payment of ₹${settlement.amount}?',
+                        'Are you sure you want to remove this payment of ₹${formatAmount(settlement.amount)}?',
                         () => appState.deleteSettlement(groupId: groupId, record: settlement),
                       ),
                     );
@@ -1240,7 +1338,270 @@ class _ActivityTab extends StatelessWidget {
       ],
     );
   }
+}
 
+// ═════════════════════════════════════════════════════════════════════════
+// Tab 2: Activity Log (Audit history of "who did what")
+// ═════════════════════════════════════════════════════════════════════════
+
+
+class _ActivityLogTab extends StatelessWidget {
+  const _ActivityLogTab({
+    required this.groupId,
+  });
+
+  final String groupId;
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = context.read<AppState>();
+
+    return StreamBuilder<List<ActivityLog>>(
+      stream: appState.activitiesStream(groupId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+              child: CircularProgressIndicator(color: kAccent));
+        }
+
+        final logs = snapshot.data ?? [];
+
+        if (logs.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(40.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.history_outlined, color: Colors.white10, size: 64),
+                  SizedBox(height: 16),
+                  Text(
+                    'No activities yet reported for this group.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white24),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Group by date
+        final grouped = <String, List<ActivityLog>>{};
+        for (final log in logs) {
+          final day = _formatDateHeader(log.timestamp);
+          grouped.putIfAbsent(day, () => []).add(log);
+        }
+
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 120),
+          children: [
+            ...grouped.entries.expand((group) => [
+                  _MonthHeader(title: group.key),
+                  ...group.value.map((log) => _ActivityLogItem(log: log)),
+                ]),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatDateHeader(DateTime date) {
+    final now = DateTime.now();
+    if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day) {
+      return 'Today';
+    }
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (date.year == yesterday.year &&
+        date.month == yesterday.month &&
+        date.day == yesterday.day) {
+      return 'Yesterday';
+    }
+    return _formatMonthYear(date);
+  }
+}
+
+class _ActivityLogItem extends StatelessWidget {
+  const _ActivityLogItem({required this.log});
+  final ActivityLog log;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconData = _getIconForAction(log.action);
+    final color = _getColorForAction(log.action);
+    final isMe = log.actorId == FirebaseAuth.instance.currentUser?.uid;
+    final actor = isMe ? 'You' : log.actorName;
+    
+    // DETAIL GENERATION
+    String details = '';
+    final changes = log.changedFields;
+    if (log.action == ActivityAction.expenseEdited && changes.isNotEmpty) {
+      final List<String> detailParts = [];
+      if (changes.contains('amount') && log.oldAmount != null) {
+        detailParts.add('amount from ₹${formatAmount(log.oldAmount!)} to ₹${formatAmount(log.amount ?? 0)}');
+      }
+      
+      final otherChanges = changes.where((c) => c != 'amount').toList();
+      if (otherChanges.isNotEmpty) {
+        detailParts.add('fields: ${otherChanges.join(', ')}');
+      }
+      
+      details = ' (${detailParts.join('; ')})';
+    } else if (log.action == ActivityAction.groupEdited) {
+       details = ' (New name: ${log.targetName})';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AppSurface(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Action Icon
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(iconData, color: color, size: 16),
+            ),
+            const SizedBox(width: 14),
+            // Text Content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RichText(
+                    text: TextSpan(
+                      style: const TextStyle(
+                          color: Colors.white70, fontSize: 13, height: 1.4),
+                      children: [
+                        TextSpan(
+                            text: actor,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white)),
+                        TextSpan(text: ' ${_getActionText(log.action)} '),
+                        TextSpan(
+                            text: log.targetName,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white)),
+                        if (log.amount != null) ...[
+                          const TextSpan(text: ' of '),
+                          TextSpan(
+                              text: '₹${formatAmount(log.amount ?? 0)}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF4ADE80))),
+                        ],
+                        if (details.isNotEmpty)
+                          TextSpan(
+                            text: details,
+                            style: const TextStyle(color: Colors.white38, fontSize: 11, fontStyle: FontStyle.italic),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatTime(log.timestamp),
+                    style: const TextStyle(color: Colors.white24, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getIconForAction(ActivityAction action) {
+    switch (action) {
+      case ActivityAction.expenseAdded:
+        return Icons.add_circle_outline_rounded;
+      case ActivityAction.expenseEdited:
+        return Icons.edit_note_rounded;
+      case ActivityAction.expenseDeleted:
+        return Icons.delete_outline_rounded;
+      case ActivityAction.settlementRecorded:
+        return Icons.account_balance_wallet_outlined;
+      case ActivityAction.settlementConfirmed:
+        return Icons.verified_rounded;
+      case ActivityAction.settlementDisputed:
+        return Icons.gpp_bad_outlined;
+      case ActivityAction.groupCreated:
+        return Icons.group_add_rounded;
+      case ActivityAction.groupEdited:
+        return Icons.settings_rounded;
+      case ActivityAction.memberAdded:
+        return Icons.person_add_outlined;
+      default:
+        return Icons.info_outline;
+    }
+  }
+
+  Color _getColorForAction(ActivityAction action) {
+    switch (action) {
+      case ActivityAction.expenseAdded:
+        return const Color(0xFF63B3ED);
+      case ActivityAction.expenseEdited:
+        return const Color(0xFFF6AD55);
+      case ActivityAction.expenseDeleted:
+        return Colors.redAccent;
+      case ActivityAction.settlementRecorded:
+        return const Color(0xFFB794F4);
+      case ActivityAction.settlementConfirmed:
+        return const Color(0xFF4ADE80);
+      case ActivityAction.settlementDisputed:
+        return Colors.orangeAccent;
+      case ActivityAction.groupCreated:
+        return kAccent;
+      case ActivityAction.groupEdited:
+        return Colors.white54;
+      case ActivityAction.memberAdded:
+        return const Color(0xFFF687B3);
+      default:
+        return Colors.white24;
+    }
+  }
+
+  String _getActionText(ActivityAction action) {
+    switch (action) {
+      case ActivityAction.expenseAdded:
+        return 'added';
+      case ActivityAction.expenseEdited:
+        return 'updated';
+      case ActivityAction.expenseDeleted:
+        return 'deleted';
+      case ActivityAction.settlementRecorded:
+        return 'recorded';
+      case ActivityAction.settlementConfirmed:
+        return 'confirmed';
+      case ActivityAction.settlementDisputed:
+        return 'disputed';
+      case ActivityAction.groupCreated:
+        return 'created group';
+      case ActivityAction.groupEdited:
+        return 'updated settings for';
+      case ActivityAction.memberAdded:
+        return 'added member';
+      default:
+        return 'performed';
+    }
+  }
+
+  String _formatTime(DateTime dt) {
+    final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    final minute = dt.minute.toString().padLeft(2, '0');
+    return '$hour:$minute $ampm';
+  }
 }
 
 class _MonthHeader extends StatelessWidget {
@@ -1355,8 +1716,8 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                           const SizedBox(height: 4),
                           Text(
                               payer?.id == FirebaseAuth.instance.currentUser?.uid
-                                 ? 'You paid ₹${widget.expense.amount}'
-                                 : '$payerName paid ₹${widget.expense.amount}',
+                                 ? 'You paid ₹${formatAmount(widget.expense.amount)}'
+                                 : '$payerName paid ₹${formatAmount(widget.expense.amount)}',
                             style: const TextStyle(
                                 color: Colors.white54, fontSize: 12),
                           ),
@@ -1384,30 +1745,30 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                   children: [
                     // Stacked avatar circles
                     SizedBox(
-                      height: 24,
-                      width: (involvedMembers.length * 16.0).clamp(24, 100) + 8,
+                      height: 28,
+                      width: (involvedMembers.length * 18.0).clamp(28, 120) + 12,
                       child: Stack(
                         children: [
                           for (var i = 0; i < involvedMembers.length && i < 5; i++)
                             Positioned(
-                              left: i * 14.0,
-                              child: _MiniAvatar(name: involvedMembers[i]!.name),
+                              left: i * 16.0,
+                              child: _MiniAvatar(name: involvedMembers[i]!.name, size: 28),
                             ),
                           if (involvedMembers.length > 5)
                             Positioned(
-                              left: 5 * 14.0,
+                              left: 5 * 16.0,
                               child: Container(
-                                width: 24,
-                                height: 24,
+                                width: 28,
+                                height: 28,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: Colors.white10,
-                                  border: Border.all(color: const Color(0xFF1A1927), width: 1.5),
+                                  border: Border.all(color: const Color(0xFF141414), width: 2),
                                 ),
                                 child: Center(
                                   child: Text(
                                     '+${involvedMembers.length - 5}',
-                                    style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w800),
+                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white70),
                                   ),
                                 ),
                               ),
@@ -1415,28 +1776,42 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     Text(
-                      'Split between ${involvedMembers.length}',
-                      style: const TextStyle(color: Colors.white24, fontSize: 11),
+                      '${involvedMembers.length} involved',
+                      style: const TextStyle(color: Colors.white24, fontSize: 12, fontWeight: FontWeight.w500),
                     ),
                     const Spacer(),
                     if (_expanded) ...[
-                      IconButton(
-                        onPressed: widget.onEdit,
-                        icon: const Icon(Icons.edit_outlined, size: 16, color: kAccent),
-                        style: IconButton.styleFrom(
-                          backgroundColor: kAccent.withValues(alpha: 0.1),
-                          minimumSize: const Size(32, 32),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: widget.onEdit,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: kAccent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.edit_rounded, size: 16, color: kAccent),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
-                      IconButton(
-                        onPressed: widget.onDelete,
-                        icon: const Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
-                        style: IconButton.styleFrom(
-                          backgroundColor: Colors.redAccent.withValues(alpha: 0.1),
-                          minimumSize: const Size(32, 32),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: widget.onDelete,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.delete_rounded, size: 16, color: Colors.redAccent),
+                          ),
                         ),
                       ),
                     ],
@@ -1512,7 +1887,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                                   ),
                                 ),
                               Text(
-                                '₹${entry.value}',
+                                '₹${formatAmount(entry.value)}',
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 13),
@@ -1573,7 +1948,6 @@ class _SettlementActivityCard extends StatelessWidget {
         statusText = 'Disputed';
         break;
       case SettlementStatus.pending:
-      default:
         statusColor = Colors.amberAccent;
         statusIcon = Icons.hourglass_empty;
         statusText = 'Pending';
@@ -1581,58 +1955,73 @@ class _SettlementActivityCard extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: AppSurface(
-        padding: const EdgeInsets.only(top: 12, bottom: 8, left: 16, right: 16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             Row(
               children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    color: statusColor.withValues(alpha: 0.12),
+                    gradient: LinearGradient(
+                      colors: [statusColor.withValues(alpha: 0.15), statusColor.withValues(alpha: 0.05)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.2), width: 1),
                   ),
-                  child: Icon(statusIcon, color: statusColor, size: 18),
+                  child: Icon(statusIcon, color: statusColor, size: 20),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${memberMap[settlement.fromMemberId]?.name ?? settlement.fromName} → ${memberMap[settlement.toMemberId]?.name ?? settlement.toName}',
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                        '${memberMap[settlement.fromMemberId]?.name ?? settlement.fromName} Paid ${memberMap[settlement.toMemberId]?.name ?? settlement.toName}',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: -0.2),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Row(
                         children: [
-                          if (settlement.status != SettlementStatus.confirmed) ...[
-                             _statusBadge(statusText, statusColor),
-                             const SizedBox(width: 6),
-                          ],
-                          Text(
-                            '${settlement.note ?? "Payment recorded"} · ${_formatDate(settlement.settledAt)}',
-                            style: const TextStyle(color: Colors.white54, fontSize: 11),
-                          ),
+                           _statusBadge(statusText, statusColor),
+                           const SizedBox(width: 8),
+                           Expanded(
+                             child: Text(
+                               '${settlement.note ?? "Payment"} · ${_formatDate(settlement.settledAt)}',
+                               style: const TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.w500),
+                               maxLines: 1,
+                               overflow: TextOverflow.ellipsis,
+                             ),
+                           ),
                         ],
                       ),
                     ],
                   ),
                 ),
-                Text(
-                  '₹${settlement.amount}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: statusColor,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
                 const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: onDelete,
-                  child: const Icon(Icons.delete_outline, size: 16, color: Colors.white24),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '₹${formatAmount(settlement.amount)}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    GestureDetector(
+                      onTap: onDelete,
+                      child: const Text('Delete', style: TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1659,8 +2048,9 @@ class _SettlementActivityCard extends StatelessWidget {
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF4ADE80), 
                       foregroundColor: Colors.black,
+                      minimumSize: Size.zero,
                       visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     ),
                   ),
                 ],
@@ -1697,15 +2087,16 @@ class _SettlementActivityCard extends StatelessWidget {
 // ─── Mini avatar ─────────────────────────────────────────────────────────
 
 class _MiniAvatar extends StatelessWidget {
-  const _MiniAvatar({required this.name});
+  const _MiniAvatar({required this.name, this.size = 26});
 
   final String name;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 26,
-      height: 26,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: kAccent.withValues(alpha: 0.15),
@@ -1714,8 +2105,8 @@ class _MiniAvatar extends StatelessWidget {
       child: Center(
         child: Text(
           name.isNotEmpty ? name[0].toUpperCase() : '?',
-          style: const TextStyle(
-              fontSize: 10, fontWeight: FontWeight.w800, color: kAccent),
+          style: TextStyle(
+              fontSize: size * 0.4, fontWeight: FontWeight.w800, color: kAccent),
         ),
       ),
     );
@@ -1751,14 +2142,14 @@ class _BalancesTab extends StatelessWidget {
   });
 
   final List<GroupMember> resolvedMembers;
-  final Map<String, int> balances;
+  final Map<String, double> balances;
   final String currentUserId;
   final List<SettlementTransaction> transactions;
 
   @override
   Widget build(BuildContext context) {
     final appState = context.read<AppState>();
-    final myBalance = balances[currentUserId] ?? 0;
+    final myBalance = balances[currentUserId] ?? 0.0;
 
     return ListView(
       shrinkWrap: true,
@@ -1782,7 +2173,7 @@ class _BalancesTab extends StatelessWidget {
               if (myBalance != 0) ...[
                 const SizedBox(height: 6),
                 Text(
-                  '₹${myBalance.abs()}',
+                  '₹${formatAmount(myBalance.abs())}',
                   style: Theme.of(context).textTheme.displaySmall?.copyWith(
                         color: myBalance > 0
                             ? const Color(0xFF4ADE80)
@@ -1811,7 +2202,7 @@ class _BalancesTab extends StatelessWidget {
         const SizedBox(height: 12),
 
         ...resolvedMembers.map((member) {
-          final balance = balances[member.id] ?? 0;
+          final balance = balances[member.id] ?? 0.0;
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: AppSurface(
@@ -1872,7 +2263,7 @@ class _BalancesTab extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    balance == 0 ? '₹0' : '₹${balance.abs()}',
+                    balance == 0 ? '₹0' : '₹${formatAmount(balance.abs())}',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: balance == 0
@@ -1912,7 +2303,7 @@ class _BalancesTab extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '₹${t.amount}',
+                      '₹${formatAmount(t.amount)}',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: kAccent,
                             fontWeight: FontWeight.w800,
@@ -1957,7 +2348,7 @@ class _SettleTab extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
       children: [
         const SectionHeading(
-          title: 'Settle Up',
+          title: 'Bharat Dues',
           subtitle: 'Pay via UPI or record a manual payment to clear balances.',
         ),
         const SizedBox(height: 16),
@@ -1974,6 +2365,7 @@ class _SettleTab extends StatelessWidget {
                 SizedBox(height: 6),
                 Text(
                   'No pending transfers. Everyone is even.',
+                  textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white54, height: 1.4),
                 ),
               ],
@@ -2029,96 +2421,156 @@ class _TransactionCard extends StatelessWidget {
         : null;
 
     return AppSurface(
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  '${transaction.fromName} → ${transaction.toName}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              // Avatar Stack
+              SizedBox(
+                width: 70,
+                child: Stack(
+                  children: [
+                    _MiniAvatar(name: transaction.fromName, size: 40),
+                    Positioned(
+                      left: 24,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(color: Color(0xFF141414), shape: BoxShape.circle),
+                        child: _MiniAvatar(name: transaction.toName, size: 40),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                '₹${transaction.amount}',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: kAccent,
-                      fontWeight: FontWeight.w800,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${transaction.fromName} owes ${transaction.toName}',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white70),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '₹${formatAmount(transaction.amount)}',
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                        color: kAccent,
+                        letterSpacing: -1,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
 
-          // Status text
-          if (isCurrentUserCreditor)
-            const Text('You receive this payment — sit tight!', style: TextStyle(color: kSecondary))
-          else if (isCurrentUserDebtor && canPay)
-            Text('Pay ${transaction.toName} directly via UPI', style: const TextStyle(color: Colors.white70))
-          else if (isCurrentUserDebtor && transaction.payeeUpiId == null)
-            Text('No UPI ID saved for ${transaction.toName} yet', style: const TextStyle(color: Colors.white70))
-          else
-            Text('${transaction.fromName} pays ${transaction.toName}', style: const TextStyle(color: Colors.white70)),
-
-          // Creditor specific: WhatsApp Nudge
-          if (isCurrentUserCreditor && transaction.payerPhoneNumber != null && transaction.payerPhoneNumber!.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onRemind,
-                icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                label: const Text('Send WhatsApp Reminder'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF25D366),
-                  foregroundColor: Colors.white,
+          if (isCurrentUserCreditor) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4ADE80).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF4ADE80).withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.handshake_outlined, color: Color(0xFF4ADE80), size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'You are the receiver. Once they pay, mark it as settled below or confirm their record.',
+                      style: const TextStyle(color: Color(0xFF4ADE80), fontSize: 11, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (transaction.payerPhoneNumber != null && transaction.payerPhoneNumber!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: onRemind,
+                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                  label: const Text('Remind on WhatsApp'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
               ),
-            ),
+            ],
+          ] else if (isCurrentUserDebtor) ...[
+            if (canPay) ...[
+               const Text('GENERATE QR', style: TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+               const SizedBox(height: 12),
+               Container(
+                 width: double.infinity,
+                 padding: const EdgeInsets.all(20),
+                 decoration: BoxDecoration(
+                   color: Colors.white,
+                   borderRadius: BorderRadius.circular(24),
+                 ),
+                 child: Center(
+                   child: QrImageView(data: qrData!, size: 160, backgroundColor: Colors.white),
+                 ),
+               ),
+               const SizedBox(height: 16),
+               SizedBox(
+                 width: double.infinity,
+                 child: FilledButton.icon(
+                   onPressed: onPay,
+                   icon: const Icon(Icons.bolt_rounded, size: 18),
+                   label: const Text('Pay with UPI App'),
+                   style: FilledButton.styleFrom(
+                     backgroundColor: kAccent,
+                     foregroundColor: Colors.black,
+                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                   ),
+                 ),
+               ),
+            ] else ...[
+               Container(
+                 padding: const EdgeInsets.all(12),
+                 decoration: BoxDecoration(
+                   color: Colors.amberAccent.withValues(alpha: 0.1),
+                   borderRadius: BorderRadius.circular(12),
+                 ),
+                 child: Row(
+                   children: [
+                     const Icon(Icons.warning_amber_rounded, color: Colors.amberAccent, size: 16),
+                     const SizedBox(width: 8),
+                     Expanded(
+                       child: Text(
+                         '${transaction.toName} has not added a UPI ID yet. You can still record a manual payment.',
+                         style: const TextStyle(color: Colors.amberAccent, fontSize: 11),
+                       ),
+                     ),
+                   ],
+                 ),
+               ),
+            ],
           ],
 
-          // QR + Pay Now (only when current user owes + UPI available)
-          if (qrData != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Center(
-                child: QrImageView(data: qrData, size: 180, backgroundColor: Colors.white),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: onPay,
-                child: const Text('Pay Now'),
-              ),
-            ),
-          ] else if (isCurrentUserDebtor && transaction.payeeUpiId == null) ...[
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: null,
-                child: const Text('UPI Missing'),
-              ),
-            ),
-          ],
-
-          // Record payment button — always visible
-          const SizedBox(height: 10),
+          // Record payment button
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton.icon(
+            child: OutlinedButton(
               onPressed: onRecord,
-              icon: const Icon(Icons.check_circle_outline, size: 18),
-              label: const Text('Record Payment'),
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: const Text('Record Manual Payment', style: TextStyle(color: Colors.white54, fontSize: 12)),
             ),
           ),
         ],
@@ -2138,11 +2590,11 @@ class _AnalyticsSheet extends StatelessWidget {
   final List<Expense> expenses;
   final SettlementGroup group;
 
-  Map<ExpenseCategory, int> _computeTotals() {
-    final totals = <ExpenseCategory, int>{};
+  Map<ExpenseCategory, double> _computeTotals() {
+    final totals = <ExpenseCategory, double>{};
     for (final e in expenses) {
       final cat = e.resolvedCategory;
-      totals[cat] = (totals[cat] ?? 0) + e.amount;
+      totals[cat] = (totals[cat] ?? 0.0) + e.amount;
     }
     return totals;
   }
@@ -2151,7 +2603,7 @@ class _AnalyticsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final totals = _computeTotals();
     final sortedCats = totals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    final grandTotal = totals.values.fold<int>(0, (sum, v) => sum + v);
+    final grandTotal = totals.values.fold<double>(0, (sum, v) => sum + v);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -2159,7 +2611,7 @@ class _AnalyticsSheet extends StatelessWidget {
       maxChildSize: 0.9,
       builder: (context, controller) => Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF13121D),
+          color: Color(0xFF141414),
           borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
         ),
         child: Column(
@@ -2196,7 +2648,7 @@ class _AnalyticsSheet extends StatelessWidget {
                               Icon(cat.icon, size: 18, color: kAccent),
                               const SizedBox(width: 12),
                               Expanded(child: Text(cat.label, style: const TextStyle(fontWeight: FontWeight.w600))),
-                              Text('₹$amount', style: const TextStyle(fontWeight: FontWeight.w800, color: kAccent)),
+                              Text('₹${formatAmount(amount)}', style: const TextStyle(fontWeight: FontWeight.w800, color: kAccent)),
                             ],
                           ),
                           const SizedBox(height: 8),

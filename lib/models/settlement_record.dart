@@ -29,7 +29,7 @@ class SettlementRecord {
   final String fromName;
   final String toMemberId;
   final String toName;
-  final int amount;
+  final double amount;
   final DateTime settledAt;
   final String createdBy;
   final SettlementStatus status;
@@ -68,7 +68,7 @@ class SettlementRecord {
       fromName: json['fromName'] as String? ?? '',
       toMemberId: json['toMemberId'] as String? ?? '',
       toName: json['toName'] as String? ?? '',
-      amount: (json['amount'] as num?)?.toInt() ?? 0,
+      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
       settledAt: settledAt,
       createdBy: json['createdBy'] as String? ?? '',
       status: SettlementStatus.fromString(json['status'] as String?),

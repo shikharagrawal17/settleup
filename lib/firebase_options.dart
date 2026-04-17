@@ -17,29 +17,17 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -57,6 +45,51 @@ class DefaultFirebaseOptions {
     appId: '1:455221731717:android:9326169d49f47034f364ec',
     messagingSenderId: '455221731717',
     projectId: 'test-732f2',
+    databaseURL: 'https://test-732f2-default-rtdb.firebaseio.com',
+    storageBucket: 'test-732f2.firebasestorage.app',
+  );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyDZ3TynJGflB0ek11ytLmtWvDC9JtwIbTY',
+    appId: '1:455221731717:web:0f5fdbf36d074237f364ec',
+    messagingSenderId: '455221731717',
+    projectId: 'test-732f2',
+    authDomain: 'test-732f2.firebaseapp.com',
+    databaseURL: 'https://test-732f2-default-rtdb.firebaseio.com',
+    storageBucket: 'test-732f2.firebasestorage.app',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyAYh9N0SgREX2RYjb0Bu9DVEDjMftPJ9WU',
+    appId: '1:455221731717:ios:bcc589dc681aa8b9f364ec',
+    messagingSenderId: '455221731717',
+    projectId: 'test-732f2',
+    databaseURL: 'https://test-732f2-default-rtdb.firebaseio.com',
+    storageBucket: 'test-732f2.firebasestorage.app',
+    androidClientId: '455221731717-n17uken14jlgaef6sotuej401jj1un4k.apps.googleusercontent.com',
+    iosClientId: '455221731717-m0jqkjlss40jnhoa2olhqhgcuqnjgump.apps.googleusercontent.com',
+    iosBundleId: 'com.example.settleupLite',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyAYh9N0SgREX2RYjb0Bu9DVEDjMftPJ9WU',
+    appId: '1:455221731717:ios:bcc589dc681aa8b9f364ec',
+    messagingSenderId: '455221731717',
+    projectId: 'test-732f2',
+    databaseURL: 'https://test-732f2-default-rtdb.firebaseio.com',
+    storageBucket: 'test-732f2.firebasestorage.app',
+    androidClientId: '455221731717-n17uken14jlgaef6sotuej401jj1un4k.apps.googleusercontent.com',
+    iosClientId: '455221731717-m0jqkjlss40jnhoa2olhqhgcuqnjgump.apps.googleusercontent.com',
+    iosBundleId: 'com.example.settleupLite',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyDZ3TynJGflB0ek11ytLmtWvDC9JtwIbTY',
+    appId: '1:455221731717:web:0f5fdbf36d074237f364ec',
+    messagingSenderId: '455221731717',
+    projectId: 'test-732f2',
+    authDomain: 'test-732f2.firebaseapp.com',
+    databaseURL: 'https://test-732f2-default-rtdb.firebaseio.com',
     storageBucket: 'test-732f2.firebasestorage.app',
   );
 
