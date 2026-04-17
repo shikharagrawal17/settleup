@@ -61,6 +61,11 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
   void initState() {
     super.initState();
     _group = widget.group;
+    
+    // Sync current user's info into the group document (UPI ID, name updates, etc.)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AppState>().syncMemberInfo(_group.id, widget.profile);
+    });
   }
 
 

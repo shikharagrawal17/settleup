@@ -366,10 +366,16 @@ class _DashboardSummary extends StatelessWidget {
         expenses: expenses,
         settlements: settlements,
       );
-      final myBalance = balances[uid] ?? 0;
-      if (myBalance > 0) {
+      
+      // Check for balance using both UID and Phone Number
+      final myUidBalance = balances[uid] ?? 0.0;
+      final myPhoneBalance = (profile.phoneNumber != null) ? (balances[profile.phoneNumber!] ?? 0.0) : 0.0;
+      
+      final myBalance = (myUidBalance.abs() > myPhoneBalance.abs()) ? myUidBalance : myPhoneBalance;
+
+      if (myBalance > 0.005) {
         totalOwed += myBalance;
-      } else if (myBalance < 0) {
+      } else if (myBalance < -0.005) {
         totalOwe += myBalance.abs();
       }
     }

@@ -861,4 +861,62 @@ class AppState extends ChangeNotifier {
     if (!isValidUpiId(value ?? '')) return 'Enter a valid UPI ID';
     return null;
   }
+
+  /// Automatically syncs the current user's profile info (Name, UPI ID, Phone)
+  /// into the group document if it's missing or outdated.
+  Future<void> syncMemberInfo(String groupId, UserProfile profile) async {
+    final snap = await _groupDoc(groupId).get();
+    final data = snap.data();
+    if (data == null) return;
+
+    final membersJson = data['members'] as List<dynamic>? ?? [];
+    var members = membersJson.map((m) => GroupMember.fromJson(m as Map<String, dynamic>)).toList();
+    
+    var changed = false;
+    var updatedMembers = <GroupMember>[];
+
+    for (var m in members) {
+      // Find the entry that represents "me" (either by UID or by phone number)
+      final isMe = m.id == profile.uid || (m.phoneNumber != null && m.phoneNumber == profile.phoneNumber);
+      
+      if (isMe) {
+        // Does the stored info match our current live profile?
+        final nameMatch = m.name == profile.displayName;
+        final upiMatch = m.upiId == profile.upiId;
+        final phoneMatch = m.phoneNumber == profile.phoneNumber;
+        final idMatch = m.id == profile.uid;
+
+        if (!nameMatch || !upiMatch || !phoneMatch || !idMatch) {
+          updatedMembers.add(GroupMember(
+            id: profile.uid, // Upgrade ID to UID if it was a phone number
+            name: profile.displayName,
+            phoneNumber: profile.phoneNumber,
+            upiId: profile.upiId,
+            isSelf: true,
+          ));
+          changed = true;
+          continue;
+        }
+      }
+      updatedMembers.add(m);
+    }
+
+    if (changed) {
+      final memberIds = updatedMembers.map((m) => m.id).toList();
+      final memberIdentifiers = <String>{};
+      for (final m in updatedMembers) {
+        memberIdentifiers.add(m.id);
+        if (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) {
+          memberIdentifiers.add(m.phoneNumber!);
+        }
+      }
+
+      await _groupDoc(groupId).update({
+        'members': updatedMembers.map((m) => m.toJson()).toList(),
+        'memberIds': memberIds,
+        'memberIdentifiers': memberIdentifiers.toList(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+  }
 }

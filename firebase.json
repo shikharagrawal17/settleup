@@ -1,1 +1,59 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"test-732f2","appId":"1:455221731717:android:9326169d49f47034f364ec","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"test-732f2","configurations":{"android":"1:455221731717:android:9326169d49f47034f364ec","ios":"1:455221731717:ios:bcc589dc681aa8b9f364ec","macos":"1:455221731717:ios:bcc589dc681aa8b9f364ec","web":"1:455221731717:web:0f5fdbf36d074237f364ec","windows":"1:455221731717:web:0f5fdbf36d074237f364ec"}}},"ios":{"default":{"projectId":"test-732f2","appId":"1:455221731717:ios:bcc589dc681aa8b9f364ec","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"macos":{"default":{"projectId":"test-732f2","appId":"1:455221731717:ios:bcc589dc681aa8b9f364ec","uploadDebugSymbols":false,"fileOutput":"macos/Runner/GoogleService-Info.plist"}}}},"firestore":{"rules":"firestore.rules","indexes":"firestore.indexes.json"}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "test-732f2",
+          "appId": "1:455221731717:android:9326169d49f47034f364ec",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "test-732f2",
+          "configurations": {
+            "android": "1:455221731717:android:9326169d49f47034f364ec",
+            "ios": "1:455221731717:ios:bcc589dc681aa8b9f364ec",
+            "macos": "1:455221731717:ios:bcc589dc681aa8b9f364ec",
+            "web": "1:455221731717:web:0f5fdbf36d074237f364ec",
+            "windows": "1:455221731717:web:0f5fdbf36d074237f364ec"
+          }
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "test-732f2",
+          "appId": "1:455221731717:ios:bcc589dc681aa8b9f364ec",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "test-732f2",
+          "appId": "1:455221731717:ios:bcc589dc681aa8b9f364ec",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
