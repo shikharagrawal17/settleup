@@ -284,6 +284,10 @@ class AppState extends ChangeNotifier {
         .snapshots()
         .map((snap) {
       final Map<String, UserProfile> result = {};
+      
+      // Pre-normalise all input identifiers for comparison
+      final normalisedIdentifiers = identifiers.map((id) => normalisePhone(id)).toSet();
+
       for (final doc in snap.docs) {
         final profile = UserProfile.fromJson(doc.id, doc.data());
         
@@ -292,11 +296,19 @@ class AppState extends ChangeNotifier {
           result[doc.id] = profile;
         }
 
-        // Match by Normalised Phone Number
+        // Match by Normalised Phone Number (check if profile phone matches ANY requested identifier)
         if (profile.phoneNumber != null) {
           final pPhone = normalisePhone(profile.phoneNumber!);
-          if (identifiers.contains(pPhone)) {
+          if (normalisedIdentifiers.contains(pPhone)) {
+             // We map both the UID and the phone variants to this profile
+             result[doc.id] = profile;
              result[pPhone] = profile;
+             // Also support the raw version if it was in the identifiers
+             for (final id in identifiers) {
+               if (normalisePhone(id) == pPhone) {
+                 result[id] = profile;
+               }
+             }
           }
         }
       }
@@ -413,6 +425,12 @@ class AppState extends ChangeNotifier {
   }
 
   static String normalisePhone(String raw) {
+    if (raw.trim().isEmpty) return '';
+    if (raw.contains('@')) return raw.toLowerCase().trim();
+    
+    // If it contains letters, it's a UID, not a phone number
+    if (raw.contains(RegExp(r'[a-zA-Z]'))) return raw.trim();
+
     // Trim all whitespace, dashes, and parentheses
     var cleaned = raw.replaceAll(RegExp(r'[\s\-\(\)]'), '');
     
@@ -431,8 +449,8 @@ class AppState extends ChangeNotifier {
     else if (cleaned.startsWith('91') && cleaned.length > 10 && !cleaned.startsWith('+')) {
       cleaned = '+$cleaned';
     }
-    // Final check: if it doesn't start with +, prepend it (safeguard)
-    else if (!cleaned.startsWith('+')) {
+    // Final check: if it doesn't start with + and is long enough, prepend it
+    else if (!cleaned.startsWith('+') && cleaned.length >= 10) {
       cleaned = '+91$cleaned';
     }
 
@@ -881,7 +899,7 @@ class AppState extends ChangeNotifier {
       final mPhone = m.phoneNumber != null ? normalisePhone(m.phoneNumber!) : null;
       final profilePhone = profile.phoneNumber != null ? normalisePhone(profile.phoneNumber!) : null;
 
-      // Find the entry that represents "me" (either by UID or by phone number)
+      // Find the entry that represents "me" (either by UID or by normalized phone number)
       final isMe = m.id == profile.uid || (profilePhone != null && mPhone == profilePhone);
       
       if (isMe) {

@@ -134,6 +134,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: const Text('Save Profile'),
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    const Center(
+                      child: Text(
+                        'Version: 1.0.5+sync-hardened',
+                        style: TextStyle(color: Colors.white12, fontSize: 10),
+                      ),
+                    ),
                   ],
                 ),
               ),
