@@ -156,7 +156,12 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
   List<GroupMember> _resolveAll(List<GroupMember> groupMembers, Map<String, UserProfile> liveProfiles) {
     final appState = context.read<AppState>();
     return groupMembers.map((member) {
-      final live = liveProfiles[member.id];
+      // Try to find live profile by ID first, then by normalized phone number
+      UserProfile? live = liveProfiles[member.id];
+      if (live == null && member.phoneNumber != null) {
+        live = liveProfiles[AppState.normalisePhone(member.phoneNumber!)];
+      }
+
       final baseMember = live == null 
         ? member 
         : member.copyWith(
@@ -922,7 +927,10 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
         }
 
         return StreamBuilder<Map<String, UserProfile>>(
-          stream: appState.profilesStream(_group.members.map((m) => m.id).toList()),
+          stream: appState.profilesStream([
+            ..._group.members.map((m) => m.id),
+            ..._group.members.where((m) => m.phoneNumber != null).map((m) => m.phoneNumber!),
+          ]),
           builder: (context, profilesSnap) {
             final profiles = profilesSnap.data ?? {};
             final resolvedMembers = _resolveAll(_group.members, profiles);
