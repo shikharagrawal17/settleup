@@ -4,141 +4,85 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ── User profiles ─────────────────────────────────────────────────────
-    // Private user profiles.
-    // Only the owner can read/write their own profile.
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // ── Public profiles (minimal) ─────────────────────────────────────────
-    // Used for optional "lookup by contact" without exposing private fields.
     match /publicUsers/{uid} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null
         && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly([
-          'displayName',
-          'photoUrl',
-          'upiId',
-          'updatedAt'
-        ]);
-      allow delete: if false;
+        && request.resource.data.keys().hasOnly(['displayName', 'photoUrl', 'upiId', 'updatedAt']);
     }
 
-    // ── Registries (contact → uid) ────────────────────────────────────────
-    // Stores mappings like:
-    // - registries/email_<lowercased email> => { uid }
-    // - registries/phone_<normalized phone> => { uid }
     match /registries/{key} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && request.resource.data.keys().hasOnly(['uid', 'updatedAt']);
+      allow write: if request.auth != null;
     }
 
     // ── Shared groups ─────────────────────────────────────────────────────
-    // A group is readable/writable by any signed-in member (UID-based only).
     match /groups/{groupId} {
-      // Helper: is the caller a member of this group?
+      // Allow access if the user's UID is in memberIds, memberLogins, or if their 
+      // verified identifiers (UID/ID) match memberIdentifiers.
       function isMember() {
-        return request.auth != null && request.auth.uid in resource.data.memberIds;
+        return request.auth != null && (
+          request.auth.uid in resource.data.memberIds ||
+          (resource.data.keys().contains('memberLogins') && request.auth.uid in resource.data.memberLogins) ||
+          request.auth.uid in resource.data.memberIdentifiers
+        );
       }
 
-      // Helper for writes where resource may not yet exist (create).
       function willBeMember() {
-        return request.auth != null && request.auth.uid in request.resource.data.memberIds;
+        return request.auth != null && (
+          request.auth.uid in request.resource.data.memberIds ||
+          (request.resource.data.keys().contains('memberLogins') && request.auth.uid in request.resource.data.memberLogins) ||
+          request.auth.uid in request.resource.data.memberIdentifiers
+        );
       }
 
       allow read: if isMember();
-
-      // Create: caller must include themselves, and set themselves as createdBy.
-      allow create: if willBeMember()
-        && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.keys().hasOnly([
-          'name',
-          'createdBy',
-          'isNonGroup',
-          'memberIds',
-          'members',
-          'isDeleted',
-          'createdAt',
-          'updatedAt'
-        ]);
-
-      // Update: only the owner can change membership/ownership.
-      // Any member may update the group name (optional) and updatedAt.
-      allow update: if isMember() && (
-        (
-          request.auth.uid == resource.data.createdBy &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'name',
-            'members',
-            'memberIds',
-            'createdBy',
-            'updatedAt',
-            'isDeleted'
-          ])
-        ) ||
-        (
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'name',
-            'updatedAt'
-          ])
-        )
-      );
-
-      // Delete: strictly owner only.
+      allow create: if willBeMember() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isMember();
       allow delete: if request.auth != null && request.auth.uid == resource.data.createdBy;
 
-      // ── Expenses sub-collection ────────────────────────────────────────
       match /expenses/{expenseId} {
         function isGroupMember() {
-          return request.auth != null
-            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+          let groupData = get(/databases/$(database)/documents/groups/$(groupId)).data;
+          return request.auth != null && (
+            request.auth.uid in groupData.memberIds ||
+            (groupData.keys().contains('memberLogins') && request.auth.uid in groupData.memberLogins) ||
+            request.auth.uid in groupData.memberIdentifiers
+          );
         }
-
-        allow read: if isGroupMember();
-        allow create: if isGroupMember()
-          && request.resource.data.createdBy == request.auth.uid
-          && request.resource.data.amount > 0;
+        allow read, create: if isGroupMember();
         allow update, delete: if request.auth != null && request.auth.uid == resource.data.createdBy;
       }
 
-      // ── Settlements sub-collection ─────────────────────────────────────
       match /settlements/{settlementId} {
         function isGroupMember() {
-          return request.auth != null
-            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+           let groupData = get(/databases/$(database)/documents/groups/$(groupId)).data;
+           return request.auth != null && (
+            request.auth.uid in groupData.memberIds ||
+            (groupData.keys().contains('memberLogins') && request.auth.uid in groupData.memberLogins) ||
+            request.auth.uid in groupData.memberIdentifiers
+          );
         }
+        allow read, create: if isGroupMember();
+        allow update: if isGroupMember();
+        allow delete: if isGroupMember() && request.auth.uid == resource.data.createdBy;
+      }
 
-        allow read: if isGroupMember();
-
-        // Creator can create a pending settlement record for the group.
-        allow create: if isGroupMember()
-          && request.resource.data.createdBy == request.auth.uid
-          && request.resource.data.amount > 0;
-
-        // Receiver confirms or disputes. Creator may delete only if not confirmed.
-        allow update: if isGroupMember() && (
-          (
-            request.auth.uid == resource.data.toMemberId &&
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'status',
-              'confirmedAt',
-              'updatedAt'
-            ])
-          ) ||
-          (
-            request.auth.uid == resource.data.toMemberId &&
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'status',
-              'updatedAt'
-            ])
-          )
-        );
-
-        allow delete: if isGroupMember()
-          && request.auth.uid == resource.data.createdBy
-          && resource.data.status != 'confirmed';
+      match /activities/{activityId} {
+        function isGroupMember() {
+           let groupData = get(/databases/$(database)/documents/groups/$(groupId)).data;
+           return request.auth != null && (
+            request.auth.uid in groupData.memberIds ||
+            (groupData.keys().contains('memberLogins') && request.auth.uid in groupData.memberLogins) ||
+            request.auth.uid in groupData.memberIdentifiers
+          );
+        }
+        allow read, create: if isGroupMember();
+        allow update, delete: if false; // Audit logs should be immutable
       }
     }
   }

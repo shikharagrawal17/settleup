@@ -48,8 +48,9 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
       expenses: widget.expenses,
       settlements: widget.settlements,
     );
+    final currentUserId = widget.currentUserId;
     _members = widget.group.members
-        .map((m) => _MemberDraft.fromMember(m))
+        .map((m) => _MemberDraft.fromMember(m, currentUserId))
         .toList();
   }
 
@@ -97,7 +98,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
       for (final member in imported) {
         final exists = _members.any((d) => d.id == member.id);
         if (!exists) {
-          final draft = _MemberDraft.fromMember(member);
+          final draft = _MemberDraft.fromMember(member, widget.currentUserId);
           _members.add(draft);
           if (member.phoneNumber != null && member.phoneNumber!.isNotEmpty) {
             _performLookup(appState, draft);
@@ -481,26 +482,25 @@ class _MemberDraft {
   final bool isSelf;
   UserProfile? registeredProfile;
 
-  factory _MemberDraft.fromMember(GroupMember member) {
+  factory _MemberDraft.fromMember(GroupMember member, String currentUserId) {
     return _MemberDraft(
       id: member.id,
       nameController: TextEditingController(text: member.name),
       phoneController: TextEditingController(text: member.phoneNumber ?? ''),
       upiController: TextEditingController(text: member.upiId ?? ''),
-      isSelf: member.isSelf,
+      isSelf: member.id == currentUserId || (member.uid != null && member.uid == currentUserId),
     );
   }
 
   GroupMember toMember() {
     final rawPhone = phoneController.text.trim();
-    // If we have a registered profile, use its real UID.
-    final effectiveId = registeredProfile?.uid ?? id;
-
+    // Use the stored UID if found, but do NOT change the accounting ID if it's already set.
     return GroupMember(
-      id: effectiveId,
+      id: id,
       name: nameController.text.trim(),
       phoneNumber: rawPhone.isEmpty ? null : AppState.normalisePhone(rawPhone),
       upiId: upiController.text.trim().isEmpty ? null : upiController.text.trim(),
+      uid: registeredProfile?.uid,
       isSelf: isSelf,
     );
   }

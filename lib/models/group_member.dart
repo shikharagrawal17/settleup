@@ -4,6 +4,7 @@ class GroupMember {
     required this.name,
     this.phoneNumber,
     this.upiId,
+    this.uid, // The Firebase Auth UID if this member is a registered user
     this.isSelf = false,
   });
 
@@ -11,6 +12,7 @@ class GroupMember {
   final String name;
   final String? phoneNumber;
   final String? upiId;
+  final String? uid;
   final bool isSelf;
 
   GroupMember copyWith({
@@ -18,6 +20,7 @@ class GroupMember {
     String? name,
     String? phoneNumber,
     String? upiId,
+    String? uid,
     bool? isSelf,
   }) {
     return GroupMember(
@@ -25,6 +28,7 @@ class GroupMember {
       name: name ?? this.name,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       upiId: upiId ?? this.upiId,
+      uid: uid ?? this.uid,
       isSelf: isSelf ?? this.isSelf,
     );
   }
@@ -35,6 +39,7 @@ class GroupMember {
       'name': name,
       'phoneNumber': phoneNumber,
       'upiId': upiId,
+      'uid': uid,
       'isSelf': isSelf,
     };
   }
@@ -45,6 +50,7 @@ class GroupMember {
       name: json['name'] as String? ?? 'Member',
       phoneNumber: json['phoneNumber'] as String?,
       upiId: json['upiId'] as String?,
+      uid: json['uid'] as String?,
       isSelf: json['isSelf'] as bool? ?? false,
     );
   }

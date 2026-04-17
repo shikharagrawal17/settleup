@@ -385,14 +385,14 @@ class _MemberDraft {
 
   GroupMember toMember() {
     final rawPhone = phoneController.text.trim();
-    // If we have a registered profile, use its real UID as the member ID.
-    final effectiveId = registeredProfile?.uid ?? id;
-    
+    // Accounting ID is the generated 'manual_...' ID. 
+    // If a profile is found, we store the UID separately.
     return GroupMember(
-      id: effectiveId,
+      id: id,
       name: nameController.text.trim(),
       phoneNumber: rawPhone.isEmpty ? null : AppState.normalisePhone(rawPhone),
       upiId: upiController.text.trim().isEmpty ? null : upiController.text.trim(),
+      uid: registeredProfile?.uid,
       isSelf: isSelf,
     );
   }

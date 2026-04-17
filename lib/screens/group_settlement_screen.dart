@@ -81,7 +81,13 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
     );
   }
 
-  void _openSettleSheet(BuildContext context, AppState appState, List<SettlementTransaction> transactions, Map<String, GroupMember> memberMap) {
+  void _openSettleSheet(
+    BuildContext context,
+    AppState appState,
+    List<SettlementTransaction> transactions,
+    Map<String, GroupMember> memberMap, {
+    required String currentMemberId,
+  }) {
      showModalBottomSheet<void>(
        context: context,
        isScrollControlled: true,
@@ -106,7 +112,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                child: _SettleTab(
                   memberMap: memberMap,
                  transactions: transactions,
-                 currentUserId: _currentUserId,
+                 currentUserId: currentMemberId,
                 onPay: (t) => _launchUpi(t, appState),
                  onRecord: (t) => _openRecordSettlement(appState, t),
                  onRemind: _sendWhatsappReminder,
@@ -118,7 +124,13 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
      );
   }
 
-  void _openBalancesSheet(BuildContext context, Map<String, double> balances, List<SettlementTransaction> transactions, List<GroupMember> resolvedMembers) {
+  void _openBalancesSheet(
+    BuildContext context,
+    Map<String, double> balances,
+    List<SettlementTransaction> transactions,
+    List<GroupMember> resolvedMembers, {
+    required String currentMemberId,
+  }) {
      showModalBottomSheet<void>(
        context: context,
        isScrollControlled: true,
@@ -143,7 +155,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                child: _BalancesTab(
                  resolvedMembers: resolvedMembers,
                  balances: balances,
-                 currentUserId: _currentUserId,
+                 currentUserId: currentMemberId,
                  transactions: transactions,
                ),
              ),
@@ -156,8 +168,9 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
   List<GroupMember> _resolveAll(List<GroupMember> groupMembers, Map<String, UserProfile> liveProfiles) {
     final appState = context.read<AppState>();
     return groupMembers.map((member) {
-      // Try to find live profile by ID first, then by normalized phone number
-      UserProfile? live = liveProfiles[member.id];
+      // Try to find live profile by UID first, then by ID, then by normalized phone number
+      UserProfile? live = liveProfiles[member.uid ?? ''];
+      if (live == null) live = liveProfiles[member.id];
       if (live == null && member.phoneNumber != null) {
         live = liveProfiles[AppState.normalisePhone(member.phoneNumber!)];
       }
@@ -168,16 +181,41 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
             name: live.displayName,
             upiId: live.upiId,
             phoneNumber: live.phoneNumber,
+            uid: live.uid,
           );
       
       return baseMember.copyWith(
         name: appState.resolveMemberName(baseMember),
-        isSelf: baseMember.id == _currentUserId,
+        isSelf: baseMember.id == _currentUserId || (baseMember.uid != null && baseMember.uid == _currentUserId),
       );
     }).toList();
   }
 
   String get _currentUserId => widget.profile.uid;
+
+  /// Expenses/settlements are keyed by `GroupMember.id` (group-scoped accounting id),
+  /// which may be different from the Firebase Auth UID for invited/phone members.
+  /// Resolve the current user's member entry within this group and return its `id`.
+  String _currentMemberId(List<GroupMember> resolvedMembers) {
+    final uid = widget.profile.uid;
+    final rawPhone = widget.profile.phoneNumber;
+    final normalisedProfilePhone =
+        (rawPhone != null && rawPhone.trim().isNotEmpty)
+            ? AppState.normalisePhone(rawPhone)
+            : null;
+
+    for (final m in resolvedMembers) {
+      if (m.id == uid) return m.id;
+      if (m.uid != null && m.uid == uid) return m.id;
+      if (normalisedProfilePhone != null &&
+          m.phoneNumber != null &&
+          AppState.normalisePhone(m.phoneNumber!) == normalisedProfilePhone) {
+        return m.id;
+      }
+    }
+
+    return uid;
+  }
 
   Future<void> _launchUpi(SettlementTransaction transaction, AppState appState) async {
     if (transaction.payeeUpiId == null) return;
@@ -467,6 +505,8 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                 case SplitMode.exact:
                   break; 
               }
+              // Force rebuild so the 'diff' and 'sumOfShares' reflect the new calculation
+              setSheetState(() {});
             }
 
             if (splitMode != SplitMode.exact) {
@@ -590,7 +630,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                 contentPadding: EdgeInsets.zero,
                               ),
                               items: resolvedMembers
-                                  .map((m) => DropdownMenuItem(value: m.id, child: Text(m.name, style: const TextStyle(fontWeight: FontWeight.w700))))
+                                  .map((m) => DropdownMenuItem(value: m.id, child: Text(appState.resolveMemberName(m), style: const TextStyle(fontWeight: FontWeight.w700))))
                                   .toList(),
                               onChanged: (v) { if (v != null) setSheetState(() => payerId = v); },
                             ),
@@ -934,7 +974,14 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
           builder: (context, profilesSnap) {
             final profiles = profilesSnap.data ?? {};
             final resolvedMembers = _resolveAll(_group.members, profiles);
-            final memberMap = {for (var m in resolvedMembers) m.id: m};
+            final currentMemberId = _currentMemberId(resolvedMembers);
+            
+            // Build a smart member map that can resolve both by primary ID and secondary UID
+            final memberMap = <String, GroupMember>{};
+            for (var m in resolvedMembers) {
+              memberMap[m.id] = m;
+              if (m.uid != null) memberMap[m.uid!] = m;
+            }
 
             return StreamBuilder<List<Expense>>(
               stream: appState.expensesStream(_group.id),
@@ -961,12 +1008,12 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                     final totalSpent = expenses.fold<double>(0, (s, e) => s + e.amount);
 
                     final otherMember = resolvedMembers.firstWhere(
-                      (m) => m.id != _currentUserId,
+                      (m) => m.id != currentMemberId,
                       orElse: () => resolvedMembers.first,
                     );
                     final titleName = _group.isNonGroup ? otherMember.name : _group.name;
 
-                    final myGroupBalance = balances[_currentUserId] ?? 0.0;
+                    final myGroupBalance = balances[currentMemberId] ?? 0.0;
 
                     return Scaffold(
                       appBar: AppBar(
@@ -1072,7 +1119,13 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                     children: [
                                       Expanded(
                                         child: FilledButton.icon(
-                                          onPressed: () => _openSettleSheet(context, appState, transactions, memberMap),
+                                          onPressed: () => _openSettleSheet(
+                                            context,
+                                            appState,
+                                            transactions,
+                                            memberMap,
+                                            currentMemberId: currentMemberId,
+                                          ),
                                           icon: const Icon(Icons.handshake_outlined),
                                           label: const Text('Bharat Dues Summary'),
                                           style: FilledButton.styleFrom(
@@ -1141,7 +1194,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                         _BalancesTab(
                                           resolvedMembers: resolvedMembers,
                                           balances: Map<String, double>.from(balances),
-                                          currentUserId: _currentUserId,
+                                          currentUserId: currentMemberId,
                                           transactions: transactions,
                                         ),
                                       ],
@@ -1240,7 +1293,11 @@ class _ExpensesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final memberMap = {for (final m in resolvedMembers) m.id: m};
+    final memberMap = <String, GroupMember>{};
+    for (var m in resolvedMembers) {
+      memberMap[m.id] = m;
+      if (m.uid != null) memberMap[m.uid!] = m;
+    }
 
     // Merge expenses + settlements into a single chronological list.
     final rawItems = <_ActivityItem>[
@@ -1664,6 +1721,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
   @override
   Widget build(BuildContext context) {
     final appState = context.read<AppState>();
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final payer = widget.memberMap[widget.expense.payerId];
     final payerName = payer != null ? appState.resolveMemberName(payer) : 'Unknown';
     final involvedMembers = widget.expense.shares.entries
@@ -1671,6 +1729,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
         .map((e) => widget.memberMap[e.key])
         .where((m) => m != null)
         .toList();
+    final isMePayer = widget.expense.payerId == currentUserId || payer?.uid == currentUserId;
     final cat = widget.expense.resolvedCategory;
 
     return Padding(
@@ -1860,7 +1919,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                         final member =
                             widget.memberMap[entry.key];
                         final memberName =
-                            member?.name ?? entry.key;
+                            member != null ? appState.resolveMemberName(member) : entry.key;
                         final isPayer =
                             entry.key == widget.expense.payerId;
                         return Padding(

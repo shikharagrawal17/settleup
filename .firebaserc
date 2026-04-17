@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "test-732f2"
-  }
+  },
+  "targets": {
+    "test-732f2": {
+      "hosting": {
+        "main-site": [
+          "bharat-dues"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

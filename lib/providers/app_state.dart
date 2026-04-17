@@ -54,7 +54,13 @@ class AppState extends ChangeNotifier {
   }
 
   String resolveMemberName(GroupMember member) {
-    if (member.isSelf) return 'You';
+    // Only return 'You' if the ID actually matches the current user's UID 
+    // or if it's explicitly marked as self AND it's truly the current user.
+    final currentUid = _auth.currentUser?.uid;
+    if (member.id == currentUid || (member.uid != null && member.uid == currentUid)) {
+      return 'You';
+    }
+    
     if (member.phoneNumber != null) {
       final normalised = AppState.normalisePhone(member.phoneNumber!);
       if (_localContactMap.containsKey(normalised)) {
@@ -587,9 +593,12 @@ class AppState extends ChangeNotifier {
 
     // Collect all member UIDs and phone numbers for global lookup.
     final memberIds = normalizedMembers.map((m) => m.id).toList();
+    final memberLogins = normalizedMembers.where((m) => m.uid != null).map((m) => m.uid!).toList();
+    
     final memberIdentifiers = <String>{};
     for (final m in normalizedMembers) {
       memberIdentifiers.add(m.id);
+      if (m.uid != null) memberIdentifiers.add(m.uid!);
       if (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) {
         memberIdentifiers.add(m.phoneNumber!);
       }
@@ -600,6 +609,7 @@ class AppState extends ChangeNotifier {
       'createdBy': user.uid,
       'isNonGroup': isNonGroup,
       'memberIds': memberIds,
+      'memberLogins': memberLogins,
       'memberIdentifiers': memberIdentifiers.toList(),
       'members': normalizedMembers.map((m) => m.toJson()).toList(),
       'isDeleted': false,
@@ -654,6 +664,7 @@ class AppState extends ChangeNotifier {
     final memberIdentifiers = <String>{};
     for (final m in normalized) {
       memberIdentifiers.add(m.id);
+      if (m.uid != null) memberIdentifiers.add(m.uid!);
       if (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) {
         memberIdentifiers.add(m.phoneNumber!);
       }
@@ -661,7 +672,8 @@ class AppState extends ChangeNotifier {
 
     final Map<String, dynamic> data = {
       'members': normalized.map((m) => m.toJson()).toList(),
-      'memberIds': memberIds,
+      'memberIds': memberIds, // Accounting IDs
+      'memberLogins': normalized.where((m) => m.uid != null).map((m) => m.uid!).toList(), // Extra for security rules
       'memberIdentifiers': memberIdentifiers.toList(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
@@ -676,7 +688,7 @@ class AppState extends ChangeNotifier {
     );
     await _logActivity(
       groupId: groupId,
-      action: ActivityAction.memberAdded, // Using generic member update
+      action: ActivityAction.groupEdited,
       targetName: "group members",
     );
   }
@@ -896,25 +908,29 @@ class AppState extends ChangeNotifier {
 
     for (var m in members) {
       // Normalise phone numbers for accurate matching
-      final mPhone = m.phoneNumber != null ? normalisePhone(m.phoneNumber!) : null;
-      final profilePhone = profile.phoneNumber != null ? normalisePhone(profile.phoneNumber!) : null;
+      final mPhone = (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) ? normalisePhone(m.phoneNumber!) : null;
+      final profilePhone = (profile.phoneNumber != null && profile.phoneNumber!.isNotEmpty) ? normalisePhone(profile.phoneNumber!) : null;
 
       // Find the entry that represents "me" (either by UID or by normalized phone number)
-      final isMe = m.id == profile.uid || (profilePhone != null && mPhone == profilePhone);
+      // CRITICAL: Must not match if both phones are null!
+      final isMe = m.id == profile.uid || 
+                   (m.uid != null && m.uid == profile.uid) || 
+                   (profilePhone != null && mPhone != null && mPhone == profilePhone);
       
       if (isMe) {
         // Does the stored info match our current live profile?
         final nameMatch = m.name == profile.displayName;
         final upiMatch = m.upiId == profile.upiId;
         final phoneMatch = mPhone == profilePhone;
-        final idMatch = m.id == profile.uid;
+        final uidMatch = m.uid == profile.uid;
+        final selfMatch = m.isSelf == true;
 
         // Ensure we actually have a valid UPI ID before claiming everything is fine
         final hasValidUpi = profile.hasUpiId;
 
-        if (!nameMatch || !upiMatch || !phoneMatch || !idMatch || (upiMatch && !hasValidUpi)) {
-          updatedMembers.add(GroupMember(
-            id: profile.uid, // Upgrade ID to UID if it was a phone number
+        if (!nameMatch || !upiMatch || !phoneMatch || !uidMatch || !selfMatch || (upiMatch && !hasValidUpi)) {
+          updatedMembers.add(m.copyWith(
+            uid: profile.uid, 
             name: profile.displayName,
             phoneNumber: profile.phoneNumber,
             upiId: profile.upiId,
@@ -923,6 +939,11 @@ class AppState extends ChangeNotifier {
           changed = true;
           continue;
         }
+      } else if (m.isSelf) {
+        // CORRECTION: If this member is NOT me but is marked as self, fix it
+        updatedMembers.add(m.copyWith(isSelf: false));
+        changed = true;
+        continue;
       }
       updatedMembers.add(m);
     }
@@ -932,6 +953,7 @@ class AppState extends ChangeNotifier {
       final memberIdentifiers = <String>{};
       for (final m in updatedMembers) {
         memberIdentifiers.add(m.id);
+        if (m.uid != null) memberIdentifiers.add(m.uid!);
         if (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) {
           memberIdentifiers.add(m.phoneNumber!);
         }
@@ -940,6 +962,7 @@ class AppState extends ChangeNotifier {
       await _groupDoc(groupId).update({
         'members': updatedMembers.map((m) => m.toJson()).toList(),
         'memberIds': memberIds,
+        'memberLogins': updatedMembers.where((m) => m.uid != null).map((m) => m.uid!).toList(),
         'memberIdentifiers': memberIdentifiers.toList(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
