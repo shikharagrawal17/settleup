@@ -15,6 +15,18 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final appState = context.read<AppState>();
 
+    // Capture join parameter from URL if present
+    final uri = Uri.base;
+    if (uri.queryParameters.containsKey('join')) {
+      final id = uri.queryParameters['join'];
+      // Only set if different to avoid infinite notifyListeners loops if AppShell rebuilds
+      if (id != appState.pendingJoinGroupId) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          appState.pendingJoinGroupId = id;
+        });
+      }
+    }
+
     return StreamBuilder<User?>(
       stream: appState.authStateChanges,
       builder: (context, authSnapshot) {

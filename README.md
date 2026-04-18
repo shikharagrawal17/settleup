@@ -13,11 +13,13 @@
 ### 🔐 Modern Authentication & Identity
 *   **Google One-Tap**: Instant cross-platform sign-in using Google Identity Services.
 *   **Phone-First Identity**: Members are discovered via normalized phone numbers (`+91...`), ensuring stable linking even before they register.
+*   **Deep-Link Invitation Support**: Production-ready join links (`https://bharat-dues.web.app/#/?join=...`) that work across Android, iOS, and Web.
 *   **Unified Friend Discovery**: Aggregates balances across all groups by unique identifiers (UID/Phone), correctly handling users with identical names.
 
 ### 🧠 Financial Precision
 *   **Double-Precision Engine**: 100% migrated to `double` types for all currency fields, supporting 2-decimal precision (e.g., ₹10.50).
 *   **Epsilon Validation**: Uses intelligent equality checks (`(a-b).abs() < 0.01`) to ensure group balances always match exactly, even with complex splits.
+*   **Professional Terminology**: Standardized labels ("Owes" and "Is owed") with consistent color-coding (Red for debt, Green for credit) across the dashboard and group ledgers.
 *   **Greedy Debt Simplification**: Minimizes the total number of transfers needed between group members using optimized algorithms.
 
 ### 🚀 Unified Settlement Flow

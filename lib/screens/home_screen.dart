@@ -46,6 +46,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       if (widget.profile.upiId.isEmpty || (widget.profile.phoneNumber ?? '').isEmpty) {
         _editProfile(context, appState, widget.profile);
       }
+
+      // Handle Group Join from pending state
+      if (appState.pendingJoinGroupId != null) {
+        final id = appState.pendingJoinGroupId!;
+        appState.pendingJoinGroupId = null; // Clear it immediately
+        _handleJoinGroup(appState, id);
+      }
     });
   }
 
@@ -53,6 +60,23 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleJoinGroup(AppState appState, String groupId) async {
+    try {
+      await appState.joinGroup(groupId, widget.profile);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Joined group successfully!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to join group: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _openCreateGroup(
@@ -107,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   children: [
                     const SectionHeading(
                       title: 'Your Profile',
-                      subtitle: 'Keep your UPI handle up to date so group members can settle directly.',
+                      subtitle: 'Keep your UPI handle updated so group members can settle dues directly.',
                     ),
                     const SizedBox(height: 18),
                     _ReadOnlyField(
@@ -238,6 +262,60 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   Future<void> _handleDeleteGroup(AppState appState, String groupId, String groupName) async {
+    // Check if the group is settled before allowing deletion
+    final expenses = await appState.expensesStream(groupId).first;
+    final settlements = await appState.settlementsStream(groupId).first;
+    
+    // We need the group to get the members list
+    final groups = await appState.groupsStream(uid: widget.profile.uid, phoneNumber: widget.profile.phoneNumber).first;
+    final group = groups.firstWhere((g) => g.id == groupId);
+
+    final balances = computeMemberBalances(
+      members: group.members,
+      expenses: expenses,
+      settlements: settlements,
+    );
+
+    // Check if any member has a non-zero balance (using 0.01 epsilon)
+    final bool isSettled = balances.values.every((b) => b.abs() < 0.01);
+
+    if (!isSettled) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: AppSurface(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.info_outline_rounded, color: kPrimaryBlue, size: 40),
+                  const SizedBox(height: 16),
+                  const Text('Cannot Delete Group', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: kDarkBlue)),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'This group has unsettled balances. All members must be settled up before the group can be deleted.', 
+                    textAlign: TextAlign.center, 
+                    style: TextStyle(color: Colors.black87)
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx), 
+                      child: const Text('Got it'),
+                    ),
+                  )
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     await appState.deleteGroup(groupId, widget.profile.displayName);
     if (!mounted) return;
     
@@ -368,7 +446,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                               children: [
                                                 const SectionHeading(
                                                   title: 'Your Groups',
-                                                  subtitle: 'Circles for roommates, trips, and more.',
+                                                  subtitle: 'Expense tracking for roommates, trips, and more.',
                                                 ),
                                                 const SizedBox(height: 14),
                                                 if (regularGroups.isEmpty)
@@ -388,14 +466,20 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                               children: [
                                                 const SectionHeading(
                                                   title: 'All Friends',
-                                                  subtitle: 'Net balances across all your circles.',
+                                                  subtitle: 'Total net balances across all shared activities.',
                                                 ),
                                                 const SizedBox(height: 14),
                                                 if (financials.friendBalances.isEmpty)
                                                   const Center(
                                                     child: Padding(
-                                                      padding: EdgeInsets.symmetric(vertical: 40),
-                                                      child: Text('No balances with friends yet.', style: TextStyle(color: Colors.black38)),
+                                                      padding: EdgeInsets.symmetric(vertical: 60),
+                                                      child: Column(
+                                                        children: [
+                                                          Icon(Icons.check_circle_outline_rounded, color: Colors.black12, size: 48),
+                                                          SizedBox(height: 16),
+                                                          Text('You\'re all settled up!', style: TextStyle(color: Colors.black38, fontWeight: FontWeight.w500)),
+                                                        ],
+                                                      ),
                                                     ),
                                                   )
                                                 else
@@ -448,8 +532,20 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       // Look for pending settlements related to me
       for (final s in settlementsSnapshot) {
         if (s.status == SettlementStatus.pending) {
-          final isReceiver = s.toMemberId == uid || (s.toMemberId.startsWith('manual_') && s.toName == profile.displayName);
-          final isPayer = s.fromMemberId == uid || (s.fromMemberId.startsWith('manual_') && s.fromName == profile.displayName);
+          final sToPhone = s.toMemberId.startsWith('manual_') && group.members.any((m) => m.id == s.toMemberId) 
+              ? AppState.normalisePhone(group.members.firstWhere((m) => m.id == s.toMemberId).phoneNumber ?? '') 
+              : null;
+          final sFromPhone = s.fromMemberId.startsWith('manual_') && group.members.any((m) => m.id == s.fromMemberId) 
+              ? AppState.normalisePhone(group.members.firstWhere((m) => m.id == s.fromMemberId).phoneNumber ?? '') 
+              : null;
+
+          final isReceiver = s.toMemberId == uid || 
+                            (userPhone != null && sToPhone != null && sToPhone == userPhone) ||
+                            (s.toMemberId.startsWith('manual_') && s.toName == profile.displayName);
+          
+          final isPayer = s.fromMemberId == uid || 
+                         (userPhone != null && sFromPhone != null && sFromPhone == userPhone) ||
+                         (s.fromMemberId.startsWith('manual_') && s.fromName == profile.displayName);
 
           if (isReceiver || isPayer) {
             pendingSettlements.add(_PendingSettlementBatch(
@@ -644,7 +740,7 @@ class _DashboardSummary extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 38,
                   fontWeight: FontWeight.w700,
-                  color: net.abs() < 0.01 ? kDarkBlue : (net > 0 ? const Color(0xFF00A381) : Colors.redAccent),
+                  color: net.abs() < 0.01 ? kDarkBlue : (net > 0 ? const Color(0xFF4ADE80) : Colors.redAccent),
                 ),
               ),
               const SizedBox(height: 16),
@@ -652,30 +748,11 @@ class _DashboardSummary extends StatelessWidget {
                 children: [
                   Expanded(child: _MiniBalance(label: 'YOU OWE', amount: '₹${formatAmount(owe)}', color: Colors.red.shade700)),
                   const SizedBox(width: 12),
-                  Expanded(child: _MiniBalance(label: 'YOU ARE OWED', amount: '₹${formatAmount(owed)}', color: const Color(0xFF00897B))),
+                  Expanded(child: _MiniBalance(label: 'YOU ARE OWED', amount: '₹${formatAmount(owed)}', color: const Color(0xFF4ADE80))),
                 ],
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: MetricPill(
-                label: 'PAYOUT UPI ID',
-                value: profile.hasUpiId ? profile.upiId : 'Not Set',
-                highlight: profile.hasUpiId,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: MetricPill(
-                label: 'ACTIVE GROUPS',
-                value: '$groupsCount',
-              ),
-            ),
-          ],
         ),
       ],
     );
@@ -695,7 +772,7 @@ class _FriendsList extends StatelessWidget {
         if (financials.pendingSettlements.isNotEmpty) ...[
           const SectionHeading(
             title: 'Pending Verify',
-            subtitle: 'Confirm receipts or track your updates.',
+            subtitle: 'Verify received payments or track your pending requests.',
           ),
           const SizedBox(height: 12),
           ...financials.pendingSettlements.map((s) => _PendingSettlementCard(pending: s)),
@@ -705,89 +782,90 @@ class _FriendsList extends StatelessWidget {
         ],
         ...financials.friendBalances.map((friend) {
         final net = friend.netBalance;
-        final color = net > 0 ? Colors.redAccent : const Color(0xFF00897B);
-        final statusText = net > 0 ? 'You owe' : 'Owes you';
+        final color = net > 0 ? Colors.redAccent : const Color(0xFF4ADE80);
+        final statusText = net > 0 ? 'You owe' : 'Is owed';
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: AppSurface(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: kPrimaryBlue.withValues(alpha: 0.1),
-                  child: Text(friend.name[0], style: const TextStyle(color: kPrimaryBlue, fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(friend.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                      Text(statusText, style: const TextStyle(color: Colors.black38, fontSize: 11)),
-                    ],
+          child: GestureDetector(
+            onTap: () => _openSettleAllSheet(context, friend, currentProfile),
+            child: AppSurface(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: kPrimaryBlue.withValues(alpha: 0.1),
+                    child: Text(friend.name[0], style: const TextStyle(color: kPrimaryBlue, fontWeight: FontWeight.bold)),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '₹${formatAmount(net.abs())}',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: color,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (net < -0.01 && friend.phoneNumber != null)
-                          IconButton(
-                            onPressed: () async {
-                              final text = 'Hey ${friend.name}, just a friendly reminder about the ₹${formatAmount(net.abs())} balance in our Bharat Dues groups. Please settle when you can! 😉';
-                              final url = Uri.parse('whatsapp://send?phone=${friend.phoneNumber}&text=${Uri.encodeComponent(text)}');
-                              if (await canLaunchUrl(url)) {
-                                await launchUrl(url, mode: LaunchMode.externalApplication);
-                              }
-                            },
-                            icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF25D366), size: 18),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            tooltip: 'Remind on WhatsApp',
-                          ),
-                        if (net > 0.01 && friend.upiId != null)
-                          IconButton(
-                            onPressed: () async {
-                              final url = Uri.parse('upi://pay?pa=${friend.upiId}&pn=${Uri.encodeComponent(friend.name)}&am=${formatAmount(net.abs())}&cu=INR');
-                              if (await canLaunchUrl(url)) {
-                                await launchUrl(url, mode: LaunchMode.externalApplication);
-                              }
-                            },
-                            icon: const Icon(Icons.account_balance_wallet_outlined, color: kPrimaryBlue, size: 18),
-                            padding: const EdgeInsets.only(left: 10),
-                            constraints: const BoxConstraints(),
-                            tooltip: 'Pay via UPI',
-                          ),
-                        const SizedBox(width: 10),
-                        TextButton(
-                          onPressed: () => _openSettleAllSheet(context, friend, currentProfile),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            backgroundColor: kPrimaryBlue.withValues(alpha: 0.05),
-                          ),
-                          child: const Text('Settle all', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-                        ),
+                        Text(friend.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                        Text(statusText, style: const TextStyle(color: Colors.black38, fontSize: 11)),
                       ],
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '₹${formatAmount(net.abs())}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: color,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (net < -0.01 && friend.phoneNumber != null)
+                            IconButton(
+                              onPressed: () async {
+                                final text = 'Hey ${friend.name}, just a friendly reminder about the ₹${formatAmount(net.abs())} balance in our Bharat Dues groups. Please settle when you can! 😉';
+                                final url = Uri.parse('whatsapp://send?phone=${friend.phoneNumber}&text=${Uri.encodeComponent(text)}');
+                                if (await canLaunchUrl(url)) {
+                                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                                }
+                              },
+                              icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF25D366), size: 18),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              tooltip: 'Remind on WhatsApp',
+                            ),
+                          if (net > 0.01 && friend.upiId != null)
+                            IconButton(
+                              onPressed: () async {
+                                final url = Uri.parse('upi://pay?pa=${friend.upiId}&pn=${Uri.encodeComponent(friend.name)}&am=${formatAmount(net.abs())}&cu=INR');
+                                if (await canLaunchUrl(url)) {
+                                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                                }
+                              },
+                              icon: const Icon(Icons.account_balance_wallet_outlined, color: kPrimaryBlue, size: 18),
+                              padding: const EdgeInsets.only(left: 10),
+                              constraints: const BoxConstraints(),
+                              tooltip: 'Pay via UPI',
+                            ),
+                          const SizedBox(width: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: kPrimaryBlue.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text('Settle all', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: kDarkBlue)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -853,6 +931,7 @@ class _PendingSettlementCard extends StatelessWidget {
                 icon: const Icon(Icons.close, color: Colors.redAccent, size: 18),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
+                tooltip: 'Incorrect Payment',
               ),
               const SizedBox(width: 8),
               TextButton(
@@ -861,15 +940,27 @@ class _PendingSettlementCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  backgroundColor: const Color(0xFF00897B).withValues(alpha: 0.1),
-                  foregroundColor: const Color(0xFF00897B),
+                  backgroundColor: const Color(0xFF4ADE80).withValues(alpha: 0.1),
+                  foregroundColor: const Color(0xFF4ADE80),
                 ),
                 child: const Text('Confirm', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
               ),
             ] else 
-              const Padding(
-                padding: EdgeInsets.only(left: 12),
-                child: Text('Pending', style: TextStyle(color: Colors.black26, fontSize: 10, fontWeight: FontWeight.w700)),
+              Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Row(
+                  children: [
+                    const Text('Pending', style: TextStyle(color: Colors.black26, fontSize: 10, fontWeight: FontWeight.w700)),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      onPressed: () => appState.deleteSettlement(groupId: pending.groupId, record: pending.record),
+                      icon: const Icon(Icons.delete_sweep_outlined, color: Colors.black26, size: 16),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      tooltip: 'Cancel Payment Record',
+                    ),
+                  ],
+                ),
               ),
           ],
         ),
@@ -895,6 +986,9 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
   Widget build(BuildContext context) {
     final net = widget.friend.netBalance;
     final isIowe = net > 0;
+    final upiIdToShow = isIowe ? widget.friend.upiId : widget.currentProfile.upiId;
+    final nameToShow = isIowe ? widget.friend.name : widget.currentProfile.displayName;
+    final hasUpi = upiIdToShow != null && upiIdToShow.isNotEmpty;
     
     return DraggableScrollableSheet(
       initialChildSize: 0.8,
@@ -921,18 +1015,18 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
                   shape: BoxShape.circle,
                   border: Border.all(color: (isIowe ? Colors.redAccent : const Color(0xFF00897B)).withValues(alpha: 0.2), width: 2),
                 ),
-                child: Center(
-                  child: Text(
-                    isIowe ? '₹' : '✓', 
-                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: isIowe ? Colors.redAccent : const Color(0xFF00897B))
+                  child: Center(
+                    child: Text(
+                      '₹', 
+                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: isIowe ? Colors.redAccent : const Color(0xFF00897B))
+                    ),
                   ),
-                ),
               ),
             ),
             const SizedBox(height: 24),
             Center(
               child: Text(
-                isIowe ? 'Global Payment' : 'Record Global Receipt', 
+                isIowe ? 'Payment' : 'Record Receipt', 
                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 22, letterSpacing: -0.5)
               ),
             ),
@@ -944,6 +1038,34 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
               ),
             ),
             const SizedBox(height: 32),
+            
+            // Move QR to top
+            if (hasUpi && !_paymentInitiated) ...[
+              _SettleQrBox(
+                upiId: upiIdToShow!,
+                name: nameToShow,
+                amount: net.abs(),
+              ),
+              if (isIowe) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => _handlePay(upiIdToShow!, nameToShow, net.abs()),
+                    icon: const Icon(Icons.account_balance_wallet_outlined, size: 20),
+                    label: const Text('Pay via UPI App', style: TextStyle(fontWeight: FontWeight.w700)),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: kPrimaryBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 32),
+            ],
+
             // Transaction Details Card
             AppSurface(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -1018,26 +1140,7 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
             if (isIowe) ...[
               if (widget.friend.upiId != null && widget.friend.upiId!.isNotEmpty) ...[
                 if (!_paymentInitiated) ...[
-                  _SettleQrBox(
-                    upiId: widget.friend.upiId!,
-                    name: widget.friend.name,
-                    amount: net.abs(),
-                  ),
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () => _handlePay(widget.friend.upiId!, widget.friend.name, net.abs()),
-                      icon: const Icon(Icons.account_balance_wallet_outlined, size: 20),
-                      label: const Text('Pay via UPI App', style: TextStyle(fontWeight: FontWeight.w700)),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: kPrimaryBlue,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 20),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                    ),
-                  ),
+
                 ] else ...[
                   const Icon(Icons.check_circle_outline, color: kPrimaryBlue, size: 48),
                   const SizedBox(height: 16),
@@ -1056,7 +1159,7 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
                       ),
                       child: _isProcessing 
                         ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text('Confirm & Record Globally', style: TextStyle(fontWeight: FontWeight.w700)),
+                        : const Text('Confirm & Settle All', style: TextStyle(fontWeight: FontWeight.w700)),
                     ),
                   ),
                   TextButton(
@@ -1085,19 +1188,13 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
                       backgroundColor: Colors.redAccent,
                       padding: const EdgeInsets.symmetric(vertical: 20),
                     ),
-                    child: const Text('Record Cash Payment Globally'),
+                    child: const Text('Record Payment'),
                   ),
                 ),
               ],
             ] else ...[
               // Receiver Side
               if (widget.currentProfile.hasUpiId) ...[
-                _SettleQrBox(
-                  upiId: widget.currentProfile.upiId,
-                  name: widget.currentProfile.displayName,
-                  amount: net.abs(),
-                ),
-                const SizedBox(height: 32),
                 Row(
                   children: [
                     Expanded(
@@ -1143,7 +1240,7 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
             const Text(
               'Recording this will settle the net balance across all groups listed above.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.black12, fontSize: 11, fontStyle: FontStyle.italic),
+              style: TextStyle(color: Colors.black38, fontSize: 11, fontStyle: FontStyle.italic),
             ),
           ],
         ),
@@ -1283,7 +1380,7 @@ class _HomeActivityTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SectionHeading(
-              title: 'Global Activity',
+              title: 'Activity',
               subtitle: 'Track your groups and restorations.',
             ),
             const SizedBox(height: 14),
@@ -1355,7 +1452,7 @@ class _GlobalActivityCard extends StatelessWidget {
                     children: [
                       Text(
                         _formatDateTime(timestamp),
-                        style: const TextStyle(color: Colors.black38, fontSize: 11),
+                        style: const TextStyle(color: Colors.black45, fontSize: 11),
                       ),
                       const SizedBox(width: 8),
                       const Text('•', style: TextStyle(color: Colors.black12, fontSize: 10)),
@@ -1407,11 +1504,22 @@ class _GlobalActivityCard extends StatelessWidget {
 
   String _formatDateTime(DateTime dt) {
     final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return '${dt.day}/${dt.month}/${dt.year}';
+    final h = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    final m = dt.minute.toString().padLeft(2, '0');
+    final timeStr = '$h:$m $ampm';
+    
+    if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+      return 'Today, $timeStr';
+    }
+    
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (dt.year == yesterday.year && dt.month == yesterday.month && dt.day == yesterday.day) {
+      return 'Yesterday, $timeStr';
+    }
+    
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${dt.day} ${months[dt.month - 1]}, $timeStr';
   }
 }
 
@@ -1439,6 +1547,7 @@ class _GroupList extends StatelessWidget {
         final group = groups[index];
         return _GroupCard(
           group: group,
+          profile: profile,
           currentUserId: currentUserId,
           onOpen: () {
             Navigator.of(context).push(
@@ -1457,12 +1566,14 @@ class _GroupList extends StatelessWidget {
 class _GroupCard extends StatelessWidget {
   const _GroupCard({
     required this.group,
+    required this.profile,
     required this.currentUserId,
     required this.onOpen,
     required this.onDelete,
   });
 
   final SettlementGroup group;
+  final UserProfile profile;
   final String currentUserId;
   final VoidCallback onOpen;
   final VoidCallback onDelete;
@@ -1513,44 +1624,19 @@ class _GroupCard extends StatelessWidget {
               ),
             ),
             IconButton(
-              onPressed: () async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: AppSurface(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 40),
-                            const SizedBox(height: 16),
-                            const Text('Delete Group', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: kDarkBlue)),
-                            const SizedBox(height: 12),
-                            Text('Are you sure you want to delete "$displayName"?', textAlign: TextAlign.center, style: const TextStyle(color: Colors.black87)),
-                            const SizedBox(height: 12),
-                            const Text('You can undo this immediately from the main screen.', textAlign: TextAlign.center, style: TextStyle(color: Colors.black26, fontSize: 12)),
-                            const SizedBox(height: 24),
-                            Row(
-                              children: [
-                                Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel'))),
-                                const SizedBox(width: 12),
-                                Expanded(child: FilledButton(
-                                  onPressed: () => Navigator.pop(ctx, true), 
-                                  style: FilledButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
-                                  child: const Text('Delete'),
-                                )),
-                              ],
-                            )
-                          ],
-                        ),
-                      ),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => GroupSettlementScreen(
+                      group: group, 
+                      profile: profile,
+                      initiallyOpenAddExpense: true,
                     ),
                   ),
                 );
-                if (confirmed == true) onDelete();
               },
-              icon: Icon(Icons.delete_outline, color: Colors.red.shade600, size: 22),
+              icon: const Icon(Icons.add_circle_outline_rounded, color: kPrimaryBlue, size: 24),
+              tooltip: 'Add Expense',
             ),
             const Icon(Icons.arrow_forward_ios, color: Colors.black12, size: 14),
           ],

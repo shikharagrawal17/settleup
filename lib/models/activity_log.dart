@@ -10,6 +10,7 @@ enum ActivityAction {
   groupCreated,
   groupEdited,
   memberAdded,
+  settlementDeleted,
 }
 
 class ActivityLog {

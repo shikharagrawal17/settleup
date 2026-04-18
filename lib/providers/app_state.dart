@@ -13,6 +13,7 @@ import '../models/settlement_group.dart';
 import '../models/settlement_record.dart';
 import '../models/user_profile.dart';
 import '../models/activity_log.dart';
+import '../utils/settlement_helper.dart';
 import '../utils/upi_helper.dart';
 
 class AppState extends ChangeNotifier {
@@ -23,6 +24,13 @@ class AppState extends ChangeNotifier {
   bool _isSigningIn = false;
   String? _authError;
   Map<String, String> _localContactMap = {};
+  String? _pendingJoinGroupId;
+
+  String? get pendingJoinGroupId => _pendingJoinGroupId;
+  set pendingJoinGroupId(String? val) {
+    _pendingJoinGroupId = val;
+    notifyListeners();
+  }
 
   final GoogleSignIn _googleSignIn = GoogleSignIn();
   StreamSubscription<User?>? _userSub;
@@ -98,13 +106,178 @@ class AppState extends ChangeNotifier {
       return 'You';
     }
     
+    // Check if we have a local contact name for this person
     if (member.phoneNumber != null) {
       final normalised = AppState.normalisePhone(member.phoneNumber!);
       if (_localContactMap.containsKey(normalised)) {
         return _localContactMap[normalised]!;
       }
     }
+
+    // Default to the stored name in the member object
     return member.name;
+  }
+
+  /// Automatically syncs all group members' info (Name, UPI ID, Phone, Photo)
+  /// into the group document. Renamed from syncMemberInfo for expanded scope.
+  /// Deduplicates members with same phone/UID and migrates expenses if needed.
+  Future<void> syncGroupMembers(String groupId, UserProfile myProfile) async {
+    final snap = await _groupDoc(groupId).get();
+    final data = snap.data();
+    if (data == null) return;
+
+    final originalMembers = (data['members'] as List<dynamic>? ?? [])
+        .map((m) => GroupMember.fromJson(m as Map<String, dynamic>))
+        .toList();
+
+    // 1. One-off fetch for profiles involved (for real-time consistency)
+    final profileMap = <String, UserProfile>{};
+    profileMap[myProfile.uid] = myProfile; // Save me!
+
+    // Collect all phone numbers to look up
+    final allPhones = originalMembers
+        .where((m) => m.phoneNumber != null && m.phoneNumber!.isNotEmpty)
+        .map((m) => normalisePhone(m.phoneNumber!))
+        .toSet();
+
+    for (final phone in allPhones) {
+      final p = await lookupUserByContact(phone);
+      if (p != null) {
+        profileMap[p.uid] = p;
+        profileMap[phone] = p;
+      }
+    }
+
+    // 2. Build the new member list and merge map
+    final updatedMembers = <GroupMember>[];
+    final memberMergeMap = <String, String>{}; // oldId -> survivingId
+    final seenPeople = <String, String>{}; // Identity (UID or Phone) -> survivingId
+    var changed = false;
+
+    for (final m in originalMembers) {
+      final mPhone = m.phoneNumber != null ? normalisePhone(m.phoneNumber!) : null;
+      final profile = profileMap[m.uid] ?? (mPhone != null ? profileMap[mPhone] : null);
+      
+      // Effective identifier for deduplication
+      final personId = profile?.uid ?? mPhone ?? m.id;
+
+      if (seenPeople.containsKey(personId)) {
+        // DUPLICATE DETECTED! Merge this ID into the already seen one.
+        memberMergeMap[m.id] = seenPeople[personId]!;
+        changed = true;
+        continue;
+      }
+
+      // Sync data from profile if found
+      var updated = m;
+      if (profile != null) {
+        updated = m.copyWith(
+          uid: profile.uid,
+          name: profile.displayName,
+          phoneNumber: profile.phoneNumber,
+          upiId: profile.upiId,
+          photoUrl: profile.photoUrl,
+          isSelf: profile.uid == myProfile.uid,
+        );
+      } else if (m.uid == myProfile.uid) {
+        updated = m.copyWith(isSelf: true);
+      } else if (m.isSelf && m.uid != myProfile.uid) {
+        updated = m.copyWith(isSelf: false);
+      }
+
+      if (updated.toJson().toString() != m.toJson().toString()) {
+        changed = true;
+      }
+
+      updatedMembers.add(updated);
+      seenPeople[personId] = updated.id;
+    }
+
+    // 3. Persist changes
+    if (changed) {
+      // If we merged IDs, we MUST migrate expenses and settlements first
+      if (memberMergeMap.isNotEmpty) {
+        await _migrateGroupData(groupId, memberMergeMap);
+      }
+
+      final memberIds = updatedMembers.map((m) => m.id).toList();
+      final memberIdentifiers = <String>{};
+      for (final m in updatedMembers) {
+        memberIdentifiers.add(m.id);
+        if (m.uid != null) memberIdentifiers.add(m.uid!);
+        if (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) {
+          memberIdentifiers.add(m.phoneNumber!);
+        }
+      }
+
+      await _groupDoc(groupId).update({
+        'members': updatedMembers.map((m) => m.toJson()).toList(),
+        'memberIds': memberIds,
+        'memberLogins': updatedMembers.where((m) => m.uid != null).map((m) => m.uid!).toList(),
+        'memberIdentifiers': memberIdentifiers.toList(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
+  /// Helper to migrate group accounting data when members are merged.
+  Future<void> _migrateGroupData(String groupId, Map<String, String> mergeMap) async {
+    final batch = _firestore.batch();
+    
+    // 1. Update Expenses
+    final expSnap = await _expensesCol(groupId).get();
+    for (final doc in expSnap.docs) {
+      final data = doc.data();
+      var changed = false;
+
+      // Update Payer
+      final payerId = data['payerId'] as String?;
+      if (payerId != null && mergeMap.containsKey(payerId)) {
+        data['payerId'] = mergeMap[payerId];
+        changed = true;
+      }
+
+      // Update Shares (Merge amounts if multiple IDs point to same person)
+      final shares = Map<String, dynamic>.from(data['shares'] as Map? ?? {});
+      final newShares = <String, dynamic>{};
+      var sharesModified = false;
+      
+      shares.forEach((id, amount) {
+        final targetId = mergeMap[id] ?? id;
+        if (targetId != id) sharesModified = true;
+        newShares[targetId] = (newShares[targetId] ?? 0.0) + (amount as num).toDouble();
+      });
+
+      if (sharesModified) {
+        data['shares'] = newShares;
+        changed = true;
+      }
+
+      if (changed) batch.update(doc.reference, data);
+    }
+
+    // 2. Update Settlements
+    final setSnap = await _settlementsCol(groupId).get();
+    for (final doc in setSnap.docs) {
+      final data = doc.data();
+      var changed = false;
+
+      final fromId = data['fromMemberId'] as String?;
+      if (fromId != null && mergeMap.containsKey(fromId)) {
+        data['fromMemberId'] = mergeMap[fromId];
+        changed = true;
+      }
+
+      final toId = data['toMemberId'] as String?;
+      if (toId != null && mergeMap.containsKey(toId)) {
+        data['toMemberId'] = mergeMap[toId];
+        changed = true;
+      }
+
+      if (changed) batch.update(doc.reference, data);
+    }
+
+    await batch.commit();
   }
   FirebaseAuth get auth => _auth;
 
@@ -722,6 +895,40 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  Future<void> joinGroup(String groupId, UserProfile profile) async {
+    final doc = await _groupDoc(groupId).get();
+    if (!doc.exists) throw Exception('Group not found');
+    
+    final data = doc.data() as Map<String, dynamic>;
+    final List membersRaw = data['members'] ?? [];
+    final members = membersRaw.map((m) => GroupMember.fromJson(m)).toList();
+    
+    // Check if already in
+    if (members.any((m) => m.uid == profile.uid || (m.phoneNumber != null && m.phoneNumber == profile.phoneNumber))) {
+       return; // Already in
+    }
+
+    // Add as new member
+    final newMember = GroupMember(
+      id: profile.uid,
+      name: profile.displayName,
+      uid: profile.uid,
+      phoneNumber: profile.phoneNumber,
+      upiId: profile.upiId,
+    );
+    
+    members.add(newMember);
+    
+    // Update Firestore using existing utility
+    await updateGroupMembers(groupId: groupId, members: members);
+
+    await _logActivity(
+      groupId: groupId,
+      action: ActivityAction.memberAdded,
+      targetName: profile.displayName,
+    );
+  }
+
   Future<void> updateGroupMembers({
     required String groupId,
     required List<GroupMember> members,
@@ -766,6 +973,16 @@ class AppState extends ChangeNotifier {
       action: ActivityAction.groupEdited,
       targetName: "group members",
     );
+
+    // Sync group members to refresh info and deduplicate
+    final authUid = _auth.currentUser?.uid;
+    if (authUid != null) {
+      final pSnap = await _publicUserDoc(authUid).get();
+      if (pSnap.exists) {
+        final profile = UserProfile.fromJson(authUid, pSnap.data()!);
+        syncGroupMembers(groupId, profile); // Fire and forget
+      }
+    }
   }
 
   // ─── Expense CRUD ──────────────────────────────────────────────────────
@@ -805,6 +1022,14 @@ class AppState extends ChangeNotifier {
       batch: batch,
     );
     await batch.commit();
+
+    // Sync group members to refresh info and deduplicate
+    final profileSnap = await _publicUserDoc(user.uid).get();
+    if (profileSnap.exists) {
+      final profile = UserProfile.fromJson(user.uid, profileSnap.data()!);
+      syncGroupMembers(groupId, profile); // Fire and forget
+    }
+    notifyListeners();
   }
 
   Future<void> updateExpense({
@@ -891,6 +1116,15 @@ class AppState extends ChangeNotifier {
       amount: record.amount,
     );
     await _groupDoc(groupId).update({'updatedAt': FieldValue.serverTimestamp()});
+
+    // Sync group members to refresh info and deduplicate
+    if (user != null) {
+      final profileSnap = await _publicUserDoc(user.uid).get();
+      if (profileSnap.exists) {
+        final profile = UserProfile.fromJson(user.uid, profileSnap.data()!);
+        syncGroupMembers(groupId, profile); // Fire and forget
+      }
+    }
   }
 
   Future<void> confirmSettlement({
@@ -918,6 +1152,15 @@ class AppState extends ChangeNotifier {
     );
     batch.update(_groupDoc(groupId), {'updatedAt': FieldValue.serverTimestamp()});
     await batch.commit();
+
+    // Sync group members to refresh info and deduplicate
+    if (user != null) {
+      final profileSnap = await _publicUserDoc(user.uid).get();
+      if (profileSnap.exists) {
+        final profile = UserProfile.fromJson(user.uid, profileSnap.data()!);
+        syncGroupMembers(groupId, profile); // Fire and forget
+      }
+    }
   }
 
   Future<void> disputeSettlement({
@@ -952,9 +1195,10 @@ class AppState extends ChangeNotifier {
     // LOG
     _logActivity(
       groupId: groupId,
-      action: ActivityAction.expenseDeleted, // Using generic delete or can add settlementDeleted
-      targetName: "Payment of ₹${record.amount}",
+      action: ActivityAction.settlementDeleted,
+      targetName: "Payment record for ₹${formatAmount(record.amount)}",
       batch: batch,
+      amount: record.amount,
     );
 
     await batch.commit();
@@ -969,79 +1213,5 @@ class AppState extends ChangeNotifier {
 
   /// Automatically syncs the current user's profile info (Name, UPI ID, Phone)
   /// into the group document if it's missing or outdated.
-  Future<void> syncMemberInfo(String groupId, UserProfile profile) async {
-    final snap = await _groupDoc(groupId).get();
-    final data = snap.data();
-    if (data == null) return;
 
-    final membersJson = data['members'] as List<dynamic>? ?? [];
-    var members = membersJson.map((m) => GroupMember.fromJson(m as Map<String, dynamic>)).toList();
-    
-    var changed = false;
-    var updatedMembers = <GroupMember>[];
-
-    for (var m in members) {
-      // Normalise phone numbers for accurate matching
-      final mPhone = (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) ? normalisePhone(m.phoneNumber!) : null;
-      final profilePhone = (profile.phoneNumber != null && profile.phoneNumber!.isNotEmpty) ? normalisePhone(profile.phoneNumber!) : null;
-
-      // Find the entry that represents "me" (either by UID or by normalized phone number)
-      // CRITICAL: Must not match if both phones are null!
-      final isMe = m.id == profile.uid || 
-                   (m.uid != null && m.uid == profile.uid) || 
-                   (profilePhone != null && mPhone != null && mPhone == profilePhone);
-      
-      if (isMe) {
-        // Does the stored info match our current live profile?
-        final nameMatch = m.name == profile.displayName;
-        final upiMatch = m.upiId == profile.upiId;
-        final phoneMatch = mPhone == profilePhone;
-        final uidMatch = m.uid == profile.uid;
-        final selfMatch = m.isSelf == true;
-        final photoMatch = m.photoUrl == profile.photoUrl;
-
-        // Ensure we actually have a valid UPI ID before claiming everything is fine
-        final hasValidUpi = profile.hasUpiId;
-
-        if (!nameMatch || !upiMatch || !phoneMatch || !uidMatch || !selfMatch || !photoMatch || (upiMatch && !hasValidUpi)) {
-          updatedMembers.add(m.copyWith(
-            uid: profile.uid, 
-            name: profile.displayName,
-            phoneNumber: profile.phoneNumber,
-            upiId: profile.upiId,
-            photoUrl: profile.photoUrl,
-            isSelf: true,
-          ));
-          changed = true;
-          continue;
-        }
-      } else if (m.isSelf) {
-        // CORRECTION: If this member is NOT me but is marked as self, fix it
-        updatedMembers.add(m.copyWith(isSelf: false));
-        changed = true;
-        continue;
-      }
-      updatedMembers.add(m);
-    }
-
-    if (changed) {
-      final memberIds = updatedMembers.map((m) => m.id).toList();
-      final memberIdentifiers = <String>{};
-      for (final m in updatedMembers) {
-        memberIdentifiers.add(m.id);
-        if (m.uid != null) memberIdentifiers.add(m.uid!);
-        if (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) {
-          memberIdentifiers.add(m.phoneNumber!);
-        }
-      }
-
-      await _groupDoc(groupId).update({
-        'members': updatedMembers.map((m) => m.toJson()).toList(),
-        'memberIds': memberIds,
-        'memberLogins': updatedMembers.where((m) => m.uid != null).map((m) => m.uid!).toList(),
-        'memberIdentifiers': memberIdentifiers.toList(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    }
-  }
 }

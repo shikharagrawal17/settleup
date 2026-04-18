@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -36,17 +37,17 @@ String _formatMonthYear(DateTime d) {
   return '${months[d.month - 1]} ${d.year}';
 }
 
-// ─── Main screen ─────────────────────────────────────────────────────────
-
 class GroupSettlementScreen extends StatefulWidget {
   const GroupSettlementScreen({
     super.key,
     required this.group,
     required this.profile,
+    this.initiallyOpenAddExpense = false,
   });
 
   final SettlementGroup group;
   final UserProfile profile;
+  final bool initiallyOpenAddExpense;
 
   @override
   State<GroupSettlementScreen> createState() => _GroupSettlementScreenState();
@@ -57,18 +58,31 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
   bool _isSearching = false;
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  bool _flagHandled = false;
 
   @override
   void initState() {
     super.initState();
     _group = widget.group;
     
-    // Sync current user's info into the group document (UPI ID, name updates, etc.)
+    // Sync all group members' info and deduplicate if needed (UPI IDs, name updates, merges, etc.)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AppState>().syncMemberInfo(_group.id, widget.profile);
+      context.read<AppState>().syncGroupMembers(_group.id, widget.profile);
     });
   }
 
+  void _shareGroupInvite() {
+    final name = _group.name;
+    // For cross-platform compatibility (Android/iOS/Web), use a stable HTTPS URL.
+    // We use the current origin on web for easier dev testing, 
+    // but fallback to the production domain for native apps.
+    final baseUrl = kIsWeb ? Uri.base.origin : 'https://bharat-dues.web.app';
+    final joinUrl = '$baseUrl/#/?join=${_group.id}';
+    
+    final text = 'Hey, join our group "$name" on Bharat Dues to track our expenses together!\n\n'
+                'Click here to join: $joinUrl'; 
+    Share.share(text, subject: 'Invite to group: $name');
+  }
 
   void _openAnalytics(AppState appState, List<Expense> expenses) {
     showModalBottomSheet(
@@ -187,9 +201,14 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
             photoUrl: live.photoUrl,
           );
       
+      final currentPhone = (widget.profile.phoneNumber ?? '').isNotEmpty ? AppState.normalisePhone(widget.profile.phoneNumber!) : null;
+      final mPhone = (baseMember.phoneNumber ?? '').isNotEmpty ? AppState.normalisePhone(baseMember.phoneNumber!) : null;
+
       return baseMember.copyWith(
         name: appState.resolveMemberName(baseMember),
-        isSelf: baseMember.id == _currentUserId || (baseMember.uid != null && baseMember.uid == _currentUserId),
+        isSelf: baseMember.id == _currentUserId || 
+                (baseMember.uid != null && baseMember.uid == _currentUserId) ||
+                (currentPhone != null && mPhone != null && mPhone == currentPhone),
       );
     }).toList();
     return resolved;
@@ -311,7 +330,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
               ),
               const SizedBox(height: 32),
               const Text(
-                'By clicking "Confirm & Record", you acknowledge that the funds have been transferred in your UPI app.',
+                'By clicking "Confirm & Record", you acknowledge that the funds have been transferred via your UPI app.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.black12, fontSize: 11, fontStyle: FontStyle.italic),
               ),
@@ -376,7 +395,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
     }
     
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Could not open a UPI app on this device.')),
+      const SnackBar(content: Text('No UPI apps found on this device.')),
     );
   }
 
@@ -393,13 +412,13 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
     if (phone == null || phone.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No phone number saved for ${transaction.fromName}.')),
+          SnackBar(content: Text('No phone number found for ${transaction.fromName}.')),
         );
       }
       return;
     }
     
-    final message = "Hey ${transaction.fromName}, just a quick remind to settle up ₹${formatAmount(transaction.amount)} for '${_group.name}' on Bharat Dues! ${transaction.payeeUpiId != null ? 'My UPI is ${transaction.payeeUpiId}. ' : ''}Thanks 💸";
+    final message = "Hey ${transaction.fromName}, just a quick reminder to settle up ₹${formatAmount(transaction.amount)} for '${_group.name}' on Bharat Dues! ${transaction.payeeUpiId != null ? 'My UPI is ${transaction.payeeUpiId}. ' : ''}Thanks 💸";
     final url = Uri.parse('whatsapp://send?phone=$phone&text=${Uri.encodeComponent(message)}');
     
     try {
@@ -410,7 +429,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-           const SnackBar(content: Text('WhatsApp is not installed or cannot be opened.')),
+           const SnackBar(content: Text('WhatsApp is not installed or could not be opened.')),
         );
       }
     }
@@ -427,7 +446,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
           group: _group,
           expenses: expenses,
           settlements: settlements,
-          currentUserId: _currentUserId,
+          profile: widget.profile,
         ),
       ),
     );
@@ -441,7 +460,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
 
   Future<void> _openAddEditExpense(AppState appState, List<GroupMember> resolvedMembers, {Expense? initialExpense}) async {
     final descCtrl = TextEditingController(text: initialExpense?.description ?? '');
-    final amountCtrl = TextEditingController(text: (initialExpense?.amount ?? 0) > 0 ? initialExpense!.amount.toString() : '');
+    final amountCtrl = TextEditingController(text: (initialExpense?.amount ?? 0) > 0 ? formatAmount(initialExpense!.amount) : '');
     final formKey = GlobalKey<FormState>();
     String payerId = initialExpense?.payerId ?? resolvedMembers.first.id;
     SplitMode splitMode = initialExpense == null ? SplitMode.equal : SplitMode.exact;
@@ -453,7 +472,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
 
     final shareControllers = {
       for (final m in resolvedMembers) m.id: TextEditingController(
-        text: initialExpense?.shares[m.id]?.toString() ?? '',
+        text: initialExpense?.shares[m.id] != null ? formatAmount(initialExpense!.shares[m.id]!) : '',
       ),
     };
     final pctControllers = {
@@ -486,7 +505,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                 case SplitMode.equal:
                   final shares = buildEqualShareMap(total: total, members: includedMembers);
                   for (final m in resolvedMembers) {
-                    shareControllers[m.id]!.text = (shares[m.id] ?? 0).toString();
+                    shareControllers[m.id]!.text = formatAmount(shares[m.id] ?? 0.0);
                   }
                 case SplitMode.percentage:
                   final pcts = <String, double>{};
@@ -495,7 +514,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                   }
                   final shares = buildPercentageShareMap(total: total, members: includedMembers, percentages: pcts);
                   for (final m in resolvedMembers) {
-                    shareControllers[m.id]!.text = (shares[m.id] ?? 0).toString();
+                    shareControllers[m.id]!.text = formatAmount(shares[m.id] ?? 0.0);
                   }
                 case SplitMode.shares:
                   final mults = <String, double>{};
@@ -558,6 +577,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                         decoration: const InputDecoration(
                           labelText: 'Description',
                           hintText: 'Dinner, Groceries, Rent...',
+                          hintStyle: TextStyle(color: Colors.grey, fontWeight: FontWeight.normal),
                           floatingLabelBehavior: FloatingLabelBehavior.always,
                         ),
                         onChanged: (v) => setSheetState(() {
@@ -572,7 +592,10 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
-                          children: ExpenseCategory.values.map((cat) {
+                          children: [
+                            selectedCategory,
+                            ...ExpenseCategory.values.where((c) => c != selectedCategory),
+                          ].map((cat) {
                             final isSelected = selectedCategory == cat;
                             return Padding(
                               padding: const EdgeInsets.only(right: 8),
@@ -674,6 +697,25 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                   if (val) {
                                     setSheetState(() {
                                       splitMode = m;
+                                      
+                                      // Pre-fill default even values if switching to Exact or Percentage
+                                      final total = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
+                                      final included = resolvedMembers.where((mem) => includedIds.contains(mem.id)).toList();
+                                      
+                                      if (total > 0 && included.isNotEmpty) {
+                                        if (m == SplitMode.percentage) {
+                                          final even = 100 / included.length;
+                                          for (final mem in resolvedMembers) {
+                                            pctControllers[mem.id]!.text = included.contains(mem) ? even.toStringAsFixed(0) : '0';
+                                          }
+                                        } else if (m == SplitMode.exact) {
+                                          final perPerson = total / included.length;
+                                          for (final mem in resolvedMembers) {
+                                            shareControllers[mem.id]!.text = included.contains(mem) ? perPerson.toStringAsFixed(2) : '0';
+                                          }
+                                        }
+                                      }
+                                      
                                       recomputeShares();
                                     });
                                   }
@@ -816,7 +858,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                   ),
                                   Text(
                                     isBalanced 
-                                      ? 'All shares match total' 
+                                      ? 'Total amount is fully split and accounted for.' 
                                       : (splitMode == SplitMode.percentage 
                                           ? 'Remaining: ${diffPct.toStringAsFixed(1)}%' 
                                           : 'Remaining: ₹${formatAmount(diff)}'),
@@ -895,7 +937,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
     SettlementTransaction transaction,
     List<GroupMember> resolvedMembers,
   ) async {
-    final amountCtrl = TextEditingController(text: transaction.amount.toString());
+    final amountCtrl = TextEditingController(text: formatAmount(transaction.amount));
     final noteCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
@@ -1014,6 +1056,13 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                 if (expSnap.hasError) return _ErrorScaffold(error: expSnap.error);
                 final expenses = expSnap.data ?? const <Expense>[];
 
+                if (widget.initiallyOpenAddExpense && !_flagHandled && resolvedMembers.isNotEmpty) {
+                  _flagHandled = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _openAddEditExpense(appState, resolvedMembers);
+                  });
+                }
+
                 return StreamBuilder<List<SettlementRecord>>(
                   stream: appState.settlementsStream(_group.id),
                   builder: (context, setSnap) {
@@ -1083,15 +1132,15 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                             icon: const Icon(Icons.bar_chart_outlined),
                             tooltip: 'Analytics',
                           ),
-                          if (!_group.isNonGroup)
-                            IconButton(
-                              onPressed: () => _openEditGroup(appState, expenses, settlements),
-                              icon: const Icon(Icons.settings_outlined),
-                              tooltip: 'Group Settings',
-                            ),
                           IconButton(
-                            onPressed: transactions.isEmpty ? null : () => _share(transactions),
+                            onPressed: () => _openEditGroup(appState, expenses, settlements),
+                            icon: const Icon(Icons.settings_outlined),
+                            tooltip: 'Settings',
+                          ),
+                          IconButton(
+                            onPressed: _shareGroupInvite,
                             icon: const Icon(Icons.share_outlined),
+                            tooltip: 'Invite Friends',
                           ),
                         ],
                       ),
@@ -1153,7 +1202,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                               currentMemberId: currentMemberId,
                                             ),
                                           icon: const Icon(Icons.handshake_outlined),
-                                          label: const Text('Bharat Dues Summary'),
+                                          label: const Text('Settle Up'),
                                           style: FilledButton.styleFrom(
                                             backgroundColor: kPrimaryBlue,
                                             foregroundColor: Colors.black,
@@ -1193,10 +1242,31 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                         labelColor: Colors.black,
                                         unselectedLabelColor: Colors.black38,
                                         labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 10, letterSpacing: 1),
-                                        tabs: const [
-                                          Tab(text: 'EXPENSES'),
-                                          Tab(text: 'ACTIVITY'),
-                                          Tab(text: 'BALANCES'),
+                                        tabs: [
+                                          const Tab(text: 'EXPENSES'),
+                                          Tab(
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Text('ACTIVITY'),
+                                                if (settlements.any((s) => s.status != SettlementStatus.confirmed)) ...[
+                                                  const SizedBox(width: 6),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.redAccent,
+                                                      borderRadius: BorderRadius.circular(10),
+                                                    ),
+                                                    child: Text(
+                                                      '${settlements.where((s) => s.status != SettlementStatus.confirmed).length}',
+                                                      style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                          const Tab(text: 'BALANCES'),
                                         ],
                                       ),
                                     ),
@@ -1216,6 +1286,8 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                         ),
                                         _ActivityLogTab(
                                           groupId: _group.id,
+                                          pendingSettlements: settlements.where((s) => s.status != SettlementStatus.confirmed).toList(),
+                                          resolvedMembers: resolvedMembers,
                                         ),
                                         _BalancesTab(
                                           resolvedMembers: resolvedMembers,
@@ -1325,14 +1397,14 @@ class _ExpensesTab extends StatelessWidget {
       if (m.uid != null) memberMap[m.uid!] = m;
     }
 
-    // Merge expenses + settlements into a single chronological list.
+    // Merge expenses + confirmed settlements into a single chronological list.
     final rawItems = <_ActivityItem>[
       ...expenses.map((e) => _ActivityItem(
             type: _ActivityType.expense,
             date: e.createdAt,
             expense: e,
           )),
-      ...settlements.map((s) => _ActivityItem(
+      ...settlements.where((s) => s.status == SettlementStatus.confirmed).map((s) => _ActivityItem(
             type: _ActivityType.settlement,
             date: s.settledAt,
             settlement: s,
@@ -1444,9 +1516,13 @@ class _ExpensesTab extends StatelessWidget {
 class _ActivityLogTab extends StatelessWidget {
   const _ActivityLogTab({
     required this.groupId,
+    required this.pendingSettlements,
+    required this.resolvedMembers,
   });
 
   final String groupId;
+  final List<SettlementRecord> pendingSettlements;
+  final List<GroupMember> resolvedMembers;
 
   @override
   Widget build(BuildContext context) {
@@ -1461,25 +1537,10 @@ class _ActivityLogTab extends StatelessWidget {
         }
 
         final logs = snapshot.data ?? [];
-
-        if (logs.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(40.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.history_outlined, color: Colors.black12, size: 64),
-                  SizedBox(height: 16),
-                  Text(
-                    'No activities yet reported for this group.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.black12),
-                  ),
-                ],
-              ),
-            ),
-          );
+        final memberMap = <String, GroupMember>{};
+        for (var m in resolvedMembers) {
+          memberMap[m.id] = m;
+          if (m.uid != null) memberMap[m.uid!] = m;
         }
 
         // Group by date
@@ -1492,10 +1553,46 @@ class _ActivityLogTab extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 120),
           children: [
-            ...grouped.entries.expand((group) => [
-                  _MonthHeader(title: group.key),
-                  ...group.value.map((log) => _ActivityLogItem(log: log)),
-                ]),
+            if (pendingSettlements.isNotEmpty) ...[
+               const SectionHeading(
+                 title: 'Pending Confirmation',
+                 subtitle: 'Payments awaiting verification.',
+               ),
+               const SizedBox(height: 12),
+               ...pendingSettlements.map((s) => _SettlementActivityCard(
+                 settlement: s, 
+                 groupId: groupId, 
+                 appState: appState, 
+                 memberMap: memberMap, 
+                 onDelete: () => appState.deleteSettlement(groupId: groupId, record: s),
+               )),
+               const SizedBox(height: 24),
+               const Divider(height: 1, color: Colors.white10),
+               const SizedBox(height: 24),
+            ],
+            if (logs.isEmpty && pendingSettlements.isEmpty)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(40.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.history_outlined, color: Colors.black12, size: 64),
+                      SizedBox(height: 16),
+                      Text(
+                        'No activities yet reported for this group.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.black12),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ...grouped.entries.expand((group) => [
+                    _MonthHeader(title: group.key),
+                    ...group.value.map((log) => _ActivityLogItem(log: log)),
+                  ]),
           ],
         );
       },
@@ -2323,30 +2420,10 @@ class _BalancesTab extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
               child: Row(
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(13),
-                      color: balance == 0
-                          ? Colors.white.withValues(alpha: 0.06)
-                          : balance > 0
-                              ? const Color(0xFF4ADE80).withValues(alpha: 0.12)
-                              : Colors.redAccent.withValues(alpha: 0.12),
-                    ),
-                    child: Center(
-                      child: Text(
-                        appState.resolveMemberName(member).isNotEmpty ? appState.resolveMemberName(member)[0].toUpperCase() : '?',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: balance == 0
-                              ? Colors.black45
-                              : balance > 0
-                                  ? const Color(0xFF4ADE80)
-                                  : Colors.redAccent,
-                        ),
-                      ),
-                    ),
+                  _MiniAvatar(
+                    name: appState.resolveMemberName(member),
+                    photoUrl: member.photoUrl,
+                    size: 40,
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -2362,7 +2439,7 @@ class _BalancesTab extends StatelessWidget {
                           balance == 0
                               ? 'Settled'
                               : balance > 0
-                                  ? 'Gets back'
+                                  ? 'Is owed'
                                   : 'Owes',
                           style: TextStyle(
                             color: balance == 0

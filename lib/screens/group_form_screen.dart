@@ -43,7 +43,18 @@ class _GroupFormScreenState extends State<GroupFormScreen> {
 
     setState(() {
       for (final member in imported) {
-        final exists = _members.any((d) => d.id == member.id);
+        final normalizedImportedPhone = member.phoneNumber != null ? AppState.normalisePhone(member.phoneNumber!) : null;
+        
+        final exists = _members.any((d) {
+          if (d.id == member.id) return true;
+          if (normalizedImportedPhone == null) return false;
+          
+          final dPhone = d.phoneController.text.trim();
+          if (dPhone.isEmpty) return false;
+          
+          return AppState.normalisePhone(dPhone) == normalizedImportedPhone;
+        });
+
         if (!exists) {
           final draft = _MemberDraft.fromMember(member);
           _members.add(draft);
@@ -146,7 +157,7 @@ class _GroupFormScreenState extends State<GroupFormScreen> {
                       children: [
                         const SectionHeading(
                           title: 'Create a group',
-                          subtitle: 'Name it, add people, then start splitting.',
+                          subtitle: 'Name your group, add members, and start splitting expenses.',
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -164,7 +175,7 @@ class _GroupFormScreenState extends State<GroupFormScreen> {
                               child: OutlinedButton.icon(
                                 onPressed: _addManualMember,
                                 icon: const Icon(Icons.person_add_alt_1, size: 18),
-                                label: const Text('Add'),
+                                label: const Text('Add Member'),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -172,7 +183,7 @@ class _GroupFormScreenState extends State<GroupFormScreen> {
                               child: OutlinedButton.icon(
                                 onPressed: _importContacts,
                                 icon: const Icon(Icons.contacts_outlined, size: 18),
-                                label: const Text('Import'),
+                                label: const Text('Import Friends'),
                               ),
                             ),
                           ],
@@ -186,7 +197,7 @@ class _GroupFormScreenState extends State<GroupFormScreen> {
                       child: Align(
                         alignment: Alignment.topLeft,
                         child: Text(
-                          'No members yet.  Tap "Add" to enter details or "Import" from contacts.',
+                          'No members yet. Tap "Add" to manually add details or "Import" from your contacts.',
                           style: TextStyle(color: Colors.black45, height: 1.5),
                         ),
                       ),

@@ -21,13 +21,13 @@ class EditGroupScreen extends StatefulWidget {
     required this.group,
     required this.expenses,
     required this.settlements,
-    required this.currentUserId,
+    required this.profile,
   });
 
   final SettlementGroup group;
   final List<Expense> expenses;
   final List<SettlementRecord> settlements;
-  final String currentUserId;
+  final UserProfile profile;
 
   @override
   State<EditGroupScreen> createState() => _EditGroupScreenState();
@@ -48,9 +48,8 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
       expenses: widget.expenses,
       settlements: widget.settlements,
     );
-    final currentUserId = widget.currentUserId;
     _members = widget.group.members
-        .map((m) => _MemberDraft.fromMember(m, currentUserId))
+        .map((m) => _MemberDraft.fromMember(m, widget.profile))
         .toList();
   }
 
@@ -64,9 +63,8 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
   }
 
   bool _canRemove(String memberId) {
-    // Democracy: anyone can remove (Fix 1 updated).
-    // Balance check still applies (Fix 2).
-    return (_balances[memberId] ?? 0.0) == 0;
+    // A member can be removed only if they are settled up (balance is zero).
+    return (_balances[memberId] ?? 0.0).abs() < 0.01;
   }
 
   void _removeMember(int index) {
@@ -74,8 +72,9 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
     if (!_canRemove(draft.id)) {
       final balance = _balances[draft.id] ?? 0.0;
       final msg = balance > 0
-          ? '${draft.nameController.text} is owed ₹$balance. Settle first.'
-          : '${draft.nameController.text} owes ₹${balance.abs()}. Settle first.';
+          ? '${draft.nameController.text} is owed ₹${formatAmount(balance)}. Settle up first.'
+          : '${draft.nameController.text} owes ₹${formatAmount(balance.abs())}. Settle up first.';
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       return;
     }
@@ -83,6 +82,63 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
       final removed = _members.removeAt(index);
       removed.dispose();
     });
+  }
+
+  Future<void> _handleDeleteGroup() async {
+    final appState = context.read<AppState>();
+    
+    // Check if anyone owes anything
+    final totalOwes = _balances.values.fold<double>(0, (sum, b) => sum + b.abs());
+    if (totalOwes > 0.01) {
+       ScaffoldMessenger.of(context).showSnackBar(
+         const SnackBar(content: Text('All balances must be settled before deleting the group.'))
+       );
+       return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: AppSurface(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 40),
+                const SizedBox(height: 16),
+                const Text('Delete Group', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: Colors.black87)),
+                const SizedBox(height: 12),
+                Text('Are you sure you want to delete "${widget.group.name}"?', textAlign: TextAlign.center, style: const TextStyle(color: Colors.black87)),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel'))),
+                    const SizedBox(width: 12),
+                    Expanded(child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true), 
+                      style: FilledButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+                      child: const Text('Delete'),
+                    )),
+                  ],
+                )
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      // Find my profile to get actor name
+      final myProfile = _members.firstWhere((m) => m.isSelf).registeredProfile;
+      final actorName = myProfile?.displayName ?? 'User';
+      
+      await appState.deleteGroup(widget.group.id, actorName);
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    }
   }
 
   void _addManualMember() => _openMemberSheet(null);
@@ -96,7 +152,18 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
 
     setState(() {
       for (final member in imported) {
-        final exists = _members.any((d) => d.id == member.id);
+        final normalizedImportedPhone = member.phoneNumber != null ? AppState.normalisePhone(member.phoneNumber!) : null;
+
+        final exists = _members.any((d) {
+          if (d.id == member.id) return true;
+          if (normalizedImportedPhone == null) return false;
+
+          final dPhone = d.phoneController.text.trim();
+          if (dPhone.isEmpty) return false;
+
+          return AppState.normalisePhone(dPhone) == normalizedImportedPhone;
+        });
+
         if (!exists) {
           final draft = _MemberDraft.fromMember(member, widget.currentUserId);
           _members.add(draft);
@@ -162,6 +229,17 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
     setState(() {});
   }
 
+  void _shareInvite() {
+    final name = _nameController.text.trim();
+    // Use production domain for cross-platform link stability
+    const baseUrl = 'https://bharat-dues.web.app';
+    final joinUrl = '$baseUrl/#/?join=${widget.group.id}';
+    
+    final text = 'Hey, join our group "$name" on Bharat Dues to track our expenses together!\n\n'
+                'Click here to join: $joinUrl'; 
+    Share.share(text, subject: 'Invite to group: $name');
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final appState = context.read<AppState>();
@@ -218,8 +296,8 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
         e.description,
         e.resolvedCategory.label,
         payer.name,
-        e.amount.toString(),
-        ...members.map((m) => (e.shares[m.id] ?? 0).toString()),
+        formatAmount(e.amount),
+        ...members.map((m) => formatAmount(e.shares[m.id] ?? 0.0)),
       ];
       buffer.writeln(row.map((v) => '"$v"').join(','));
     }
@@ -244,7 +322,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                       children: [
                         const SectionHeading(
                           title: 'Edit Group',
-                          subtitle: 'Rename, add new people, or remove settled members.',
+                          subtitle: 'Rename the group, add members, or remove settled participants.',
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -262,8 +340,8 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                             Expanded(
                               child: OutlinedButton.icon(
                                 onPressed: _addManualMember,
-                                icon: const Icon(Icons.person_add_alt_1, size: 18),
-                                label: const Text('Add'),
+                                icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
+                                label: const Text('Add Member'),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -271,7 +349,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                               child: OutlinedButton.icon(
                                 onPressed: _importContacts,
                                 icon: const Icon(Icons.contacts_outlined, size: 18),
-                                label: const Text('Import'),
+                                label: const Text('Import Friends'),
                               ),
                             ),
                           ],
@@ -317,7 +395,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: _save,
-                        child: const Text('Save Changes'),
+                        child: const Text('Update Group'),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -327,6 +405,27 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                         onPressed: _exportCsv,
                         icon: const Icon(Icons.file_download_outlined),
                         label: const Text('Export Expenses (CSV)'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _shareInvite,
+                        icon: const Icon(Icons.ios_share_outlined),
+                        label: const Text('Share Group Invite'),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        onPressed: _handleDeleteGroup,
+                        style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+                        icon: const Icon(Icons.delete_outline, size: 20),
+                        label: const Text('Delete Group'),
                       ),
                     ),
                 ],
@@ -416,18 +515,14 @@ class _CompactMemberTile extends StatelessWidget {
                           const SizedBox(width: 6),
                           _badge('You', kDarkBlue),
                         ],
-                        if (isRegistered) ...[
-                          const SizedBox(width: 6),
-                          _badge('✓', kPrimaryBlue),
-                        ],
                       ],
                     ),
                     if (subtitleParts.isNotEmpty)
-                        Text(
-                          subtitleParts.join(' · '),
-                          style: const TextStyle(color: Colors.black45, fontSize: 11),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                      Text(
+                        subtitleParts.join(' · '),
+                        style: const TextStyle(color: Colors.black45, fontSize: 11),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                   ],
                 ),
               ),
@@ -437,9 +532,10 @@ class _CompactMemberTile extends StatelessWidget {
               ],
               if (!isSelf)
                 GestureDetector(
-                  onTap: canRemove ? onRemove : null,
+                  onTap: onRemove,
+                  behavior: HitTestBehavior.opaque,
                   child: Padding(
-                    padding: const EdgeInsets.only(left: 6),
+                    padding: const EdgeInsets.all(8.0),
                     child: Icon(Icons.close, size: 16,
                         color: canRemove ? Colors.black38 : Colors.black12),
                   ),
@@ -482,13 +578,17 @@ class _MemberDraft {
   final bool isSelf;
   UserProfile? registeredProfile;
 
-  factory _MemberDraft.fromMember(GroupMember member, String currentUserId) {
+  factory _MemberDraft.fromMember(GroupMember member, UserProfile profile) {
+    final currentUid = profile.uid;
+    final currentPhone = (profile.phoneNumber ?? '').isNotEmpty ? AppState.normalisePhone(profile.phoneNumber!) : null;
+    final mPhone = (member.phoneNumber ?? '').isNotEmpty ? AppState.normalisePhone(member.phoneNumber!) : null;
+
     return _MemberDraft(
       id: member.id,
       nameController: TextEditingController(text: member.name),
       phoneController: TextEditingController(text: member.phoneNumber ?? ''),
       upiController: TextEditingController(text: member.upiId ?? ''),
-      isSelf: member.id == currentUserId || (member.uid != null && member.uid == currentUserId),
+      isSelf: member.id == currentUid || (member.uid != null && member.uid == currentUid) || (currentPhone != null && mPhone != null && mPhone == currentPhone),
     );
   }
 

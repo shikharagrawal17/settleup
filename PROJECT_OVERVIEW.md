@@ -17,8 +17,10 @@ This document provides a distilled overview of the system state, design decision
 
 ## 🛠️ Key Features & Logic
 1. **Premium Fintech UI**: High-performance Light Theme with glassmorphic surfaces and vibrant blue accents (`#00B9F1`).
-2. **Unified Financial Dashboard**:
+2. **Cross-Platform Join Links**: Implements a robust invitation system using production-grade join URLs (`https://bharat-dues.web.app/#/?join=...`) to onboard members onto existing groups.
+3. **Unified Financial Dashboard**:
    - **Friends Tab**: Aggregates net balances across all groups.
+   - **Terminology Audit**: Standardized UI copy using "Owes" and "Is owed" for better financial clarity.
    - **Global Netting Architecture**: Recording a global receipt automatically confirms all underlying group-level transactions, significantly reducing UI noise and "pending" notifications.
 3. **Advanced Settlement Engine**:
    - **Handshake Lifecycle**: Every global settlement requires mutual agreement.
