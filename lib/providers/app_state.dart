@@ -1,11 +1,13 @@
+import 'dart:convert';
 import 'dart:async';
-import 'package:flutter_contacts/flutter_contacts.dart';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 
 import '../models/expense.dart';
 import '../models/group_member.dart';
@@ -23,7 +25,15 @@ class AppState extends ChangeNotifier {
   bool _isSigningIn = false;
   String? _authError;
   Map<String, String> _localContactMap = {};
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  List<GroupMember> _googleContacts = [];
+  List<GroupMember> get googleContacts => _googleContacts;
+
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: [
+      'email',
+      'https://www.googleapis.com/auth/contacts.readonly',
+    ],
+  );
   StreamSubscription<User?>? _userSub;
 
   AppState() {
@@ -86,6 +96,48 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading contacts: $e');
+    }
+  }
+
+  Future<void> fetchGoogleContacts() async {
+    try {
+      final googleUser = await _googleSignIn.signInSilently() ?? await _googleSignIn.signIn();
+      if (googleUser == null) return;
+
+      final authHeaders = await googleUser.authHeaders;
+      final response = await http.get(
+        Uri.parse('https://people.googleapis.com/v1/people/me/connections?personFields=names,phoneNumbers'),
+        headers: authHeaders,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List connections = data['connections'] ?? [];
+        
+        final List<GroupMember> resolved = [];
+        for (final c in connections) {
+          final names = c['names'] as List?;
+          final name = names != null && names.isNotEmpty ? names[0]['displayName'] ?? 'Unknown' : 'Unknown';
+          
+          final phones = c['phoneNumbers'] as List?;
+          if (phones != null && phones.isNotEmpty) {
+             for (final p in phones) {
+               final phone = p['value'] as String?;
+               if (phone != null) {
+                 resolved.add(GroupMember(
+                   id: 'google_${c['recordId'] ?? DateTime.now().millisecondsSinceEpoch}_${resolved.length}',
+                   name: name,
+                   phoneNumber: phone,
+                 ));
+               }
+             }
+          }
+        }
+        _googleContacts = resolved;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error fetching Google contacts: $e');
     }
   }
 
@@ -962,16 +1014,18 @@ class AppState extends ChangeNotifier {
         final phoneMatch = mPhone == profilePhone;
         final uidMatch = m.uid == profile.uid;
         final selfMatch = m.isSelf == true;
+        final photoMatch = m.photoUrl == profile.photoUrl;
 
         // Ensure we actually have a valid UPI ID before claiming everything is fine
         final hasValidUpi = profile.hasUpiId;
 
-        if (!nameMatch || !upiMatch || !phoneMatch || !uidMatch || !selfMatch || (upiMatch && !hasValidUpi)) {
+        if (!nameMatch || !upiMatch || !phoneMatch || !uidMatch || !selfMatch || !photoMatch || (upiMatch && !hasValidUpi)) {
           updatedMembers.add(m.copyWith(
             uid: profile.uid, 
             name: profile.displayName,
             phoneNumber: profile.phoneNumber,
             upiId: profile.upiId,
+            photoUrl: profile.photoUrl,
             isSelf: true,
           ));
           changed = true;

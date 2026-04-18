@@ -22,6 +22,7 @@ class GroupMember {
     String? name,
     String? phoneNumber,
     String? upiId,
+    String? uid,
     String? photoUrl,
     bool? isSelf,
   }) {

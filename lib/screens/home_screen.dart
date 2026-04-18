@@ -323,7 +323,7 @@ class _DashboardSummary extends StatelessWidget {
     final appState = context.read<AppState>();
 
     return FutureBuilder<Map<String, double>>(
-      future: _calculateTotalBalances(appState, groups, profile.uid),
+      future: _calculateTotalBalances(appState, groups, profile),
       builder: (context, snapshot) {
         final data = snapshot.data ?? {'net': 0, 'owe': 0, 'owed': 0};
         final net = data['net'] ?? 0;
@@ -415,29 +415,50 @@ class _DashboardSummary extends StatelessWidget {
     );
   }
 
-  Future<Map<String, double>> _calculateTotalBalances(AppState appState, List<SettlementGroup> groups, String uid) async {
+  Future<Map<String, double>> _calculateTotalBalances(AppState appState, List<SettlementGroup> groups, UserProfile profile) async {
     double totalOwe = 0;
     double totalOwed = 0;
+    final uid = profile.uid;
+    final userPhone = (profile.phoneNumber != null && profile.phoneNumber!.isNotEmpty) 
+        ? AppState.normalisePhone(profile.phoneNumber!) 
+        : null;
 
     for (final group in groups) {
+      // Get current data for the group
       final expenses = await appState.expensesStream(group.id).first;
       final settlements = await appState.settlementsStream(group.id).first;
+      
       final balances = computeMemberBalances(
         members: group.members,
         expenses: expenses,
         settlements: settlements,
       );
       
-      // Check for balance using both UID and Phone Number
-      final myUidBalance = balances[uid] ?? 0.0;
-      final myPhoneBalance = (profile.phoneNumber != null) ? (balances[profile.phoneNumber!] ?? 0.0) : 0.0;
-      
-      final myBalance = (myUidBalance.abs() > myPhoneBalance.abs()) ? myUidBalance : myPhoneBalance;
+      // Identify ALL IDs in this group that belong to "Me"
+      double myNetBalance = 0;
+      bool foundMe = false;
 
-      if (myBalance > 0.005) {
-        totalOwed += myBalance;
-      } else if (myBalance < -0.005) {
-        totalOwe += myBalance.abs();
+      for (final m in group.members) {
+        final mPhone = (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) 
+            ? AppState.normalisePhone(m.phoneNumber!) 
+            : null;
+
+        final isMe = m.id == uid || 
+                     (m.uid != null && m.uid == uid) || 
+                     (userPhone != null && mPhone != null && mPhone == userPhone);
+        
+        if (isMe) {
+          myNetBalance += balances[m.id] ?? 0.0;
+          foundMe = true;
+        }
+      }
+
+      if (foundMe) {
+        if (myNetBalance > 0.005) {
+          totalOwed += myNetBalance;
+        } else if (myNetBalance < -0.005) {
+          totalOwe += myNetBalance.abs();
+        }
       }
     }
 

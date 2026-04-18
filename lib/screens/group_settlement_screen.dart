@@ -168,7 +168,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
 
   List<GroupMember> _resolveAll(List<GroupMember> groupMembers, Map<String, UserProfile> liveProfiles) {
     final appState = context.read<AppState>();
-    return groupMembers.map((member) {
+    final List<GroupMember> resolved = groupMembers.map<GroupMember>((member) {
       // Try to find live profile by UID first, then by ID, then by normalized phone number
       UserProfile? live = liveProfiles[member.uid ?? ''];
       if (live == null) live = liveProfiles[member.id];
@@ -176,13 +176,14 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
         live = liveProfiles[AppState.normalisePhone(member.phoneNumber!)];
       }
 
-      final baseMember = live == null 
+      final GroupMember baseMember = live == null 
         ? member 
         : member.copyWith(
             name: live.displayName,
             upiId: live.upiId,
             phoneNumber: live.phoneNumber,
             uid: live.uid,
+            photoUrl: live.photoUrl,
           );
       
       return baseMember.copyWith(
@@ -190,6 +191,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
         isSelf: baseMember.id == _currentUserId || (baseMember.uid != null && baseMember.uid == _currentUserId),
       );
     }).toList();
+    return resolved;
   }
 
   String get _currentUserId => widget.profile.uid;
@@ -518,6 +520,11 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
             final sumOfShares = shareControllers.values.fold<double>(0, (sum, ctrl) => sum + (double.tryParse(ctrl.text.trim()) ?? 0.0));
             final isBalanced = (totalExpense - sumOfShares).abs() < 0.01;
             final diff = totalExpense - sumOfShares;
+            
+            final sumOfPcts = pctControllers.entries
+                .where((e) => includedIds.contains(e.key))
+                .fold<double>(0, (sum, e) => sum + (double.tryParse(e.value.text.trim()) ?? 0));
+            final diffPct = 100.0 - sumOfPcts;
 
             return DraggableScrollableSheet(
               initialChildSize: 0.85,
@@ -807,7 +814,11 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                     ),
                                   ),
                                   Text(
-                                    isBalanced ? 'All shares match total' : 'Remaining: ₹${formatAmount(diff)}',
+                                    isBalanced 
+                                      ? 'All shares match total' 
+                                      : (splitMode == SplitMode.percentage 
+                                          ? 'Remaining: ${diffPct.toStringAsFixed(1)}%' 
+                                          : 'Remaining: ₹${formatAmount(diff)}'),
                                     style: TextStyle(
                                       color: isBalanced ? kDarkBlue : Colors.redAccent,
                                       fontWeight: FontWeight.w600,
