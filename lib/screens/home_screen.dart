@@ -35,6 +35,12 @@ class _HomeScreenState extends State<HomeScreen> {
       final appState = context.read<AppState>();
       appState.initMessaging();
       appState.loadLocalContacts();
+
+      // Check if profile is incomplete (missing UPI ID or Phone Number)
+      // and prompt the user immediately if so.
+      if (widget.profile.upiId.isEmpty || (widget.profile.phoneNumber ?? '').isEmpty) {
+        _editProfile(context, appState, widget.profile);
+      }
     });
   }
 
@@ -141,6 +147,22 @@ class _HomeScreenState extends State<HomeScreen> {
                           if (sheetContext.mounted) Navigator.of(sheetContext).pop();
                         },
                         child: const Text('Save Profile'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          side: const BorderSide(color: Colors.redAccent),
+                        ),
+                        onPressed: () {
+                          Navigator.of(sheetContext).pop();
+                          appState.signOut();
+                        },
+                        icon: const Icon(Icons.logout_rounded, size: 18),
+                        label: const Text('Sign Out'),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -251,10 +273,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           )
                         : const Icon(Icons.account_circle_outlined),
                   ),
-                  IconButton(
-                    onPressed: appState.signOut,
-                    icon: const Icon(Icons.logout),
-                  ),
                 ],
               ),
               floatingActionButton: Column(
@@ -349,10 +367,6 @@ class _DashboardSummary extends StatelessWidget {
                       ),
                     ],
                   ),
-                ),
-                IconButton(
-                  onPressed: onEditProfile,
-                  icon: const Icon(Icons.settings_outlined, size: 20),
                 ),
               ],
             ),
