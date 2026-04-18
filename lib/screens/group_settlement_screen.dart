@@ -2080,8 +2080,8 @@ class _SettlementActivityCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${memberMap[settlement.fromMemberId]?.name ?? settlement.fromName} Paid ${memberMap[settlement.toMemberId]?.name ?? settlement.toName}',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, letterSpacing: -0.2),
+                        '${memberMap[settlement.fromMemberId]?.name ?? settlement.fromName} Paid ${memberMap[settlement.toMemberId]?.name ?? settlement.toName} ₹${formatAmount(settlement.amount)}',
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: -0.2),
                       ),
                       const SizedBox(height: 4),
                       Row(
@@ -2107,10 +2107,10 @@ class _SettlementActivityCard extends StatelessWidget {
                   children: [
                     Text(
                       '₹${formatAmount(settlement.amount)}',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: statusColor,
                         fontSize: 18,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                         letterSpacing: -0.5,
                       ),
                     ),
