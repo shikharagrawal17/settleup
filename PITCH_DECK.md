@@ -37,6 +37,7 @@ graph LR
 | **Real-Time Sync** | Firestore event-driven streams | Everyone stays on the same page |
 | **Activity Audit** | Detailed "who changed what" log | Absolute transparency & trust |
 | **UPI Intent** | Direct deep-linking to Payment Apps | Pay in 2 taps, no manual entry |
+| **Smart Approvals** | Instant confirmation for receivers | Frictionless manual payments |
 
 ---
 

@@ -9,6 +9,7 @@ This document provides a distilled overview of the current system state, design 
 - **Authentication & Identity**: 
   - **Google Login**: Primary OAuth-based sign-in (Cross-platform GSI integration).
   - **Identity Linking**: Automatic mapping of legacy member IDs to registered user UIDs via specialized `registries` collection.
+  - **Identity-Aware Balances**: Global financial tracking that aggregates debts across manual IDs, phone numbers, and UIDs to prevent fragmented reporting.
   - **Phone Discovery**: Real-time group visibility for invited members via phone number normalization and indexing.
 - **Data Model (Firestore)**:
   - `groups/{groupId}`: Main document containing members array, accounting metadata, and `memberIdentifiers`.
@@ -23,7 +24,8 @@ This document provides a distilled overview of the current system state, design 
 1. **Premium Fintech UI**: Immersive **Fintech Light Theme** with vibrant blue accents (`#00B9F1`), minimalist white surfaces, and high-contrast typography optimized for accessibility.
 2. **Strict Financial Input**: Enforced numeric-only keyboards and decimal-safe input formatters across all currency and contact fields (+91 support).
 3. **Real-Time Sync**: Firestore-backed streams ensuring all members see updates (expenses, settlements, and member edits) instantly.
-3. **Simplified Settlement**: Greedy debt-minimization algorithm reduces transfers across complex group topologies.
+  3. **Simplified Settlement**: Greedy debt-minimization algorithm reduces transfers across complex group topologies.
+  4. **Smart Approval Flow**: Auto-confirmation logic that bypasses approval steps when the payment receiver is the one recording the manual transaction.
 4. **Smart Expense Logic**: 
    - **Split Modes**: Supports Equal, Percentage, Shares (Multiplier), and Exact Amount modalities.
    - **Rounding Safety**: Cent-based truncation/distribution ensures `Total == sum(Shares)` within ₹0.01 tolerance.
@@ -46,4 +48,5 @@ This document provides a distilled overview of the current system state, design 
 - **Android/Web**: Fully configured and verified with GSI.
 - **iOS/macOS**: `Info.plist` and `GoogleService-Info.plist` configured for OAuth and URL schemas.
 - **UI/UX**: Transitioned to high-contrast Light Theme; all visibility and contrast issues resolved for Activity, Profile, and Settlement screens.
+- **Identity**: 100% identity-aware; users are automatically prompted to complete profiles (UPI/Phone) upon sign-in.
 - **Finance**: 100% migrated to double precision with cent-based rounding logic and numeric input enforcement.

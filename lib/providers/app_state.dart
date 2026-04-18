@@ -838,20 +838,19 @@ class AppState extends ChangeNotifier {
   Future<void> addSettlement({
     required String groupId,
     required SettlementRecord record,
+    bool confirmed = false,
   }) async {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    // Settlements always start as 'pending' through the UI flow.
-    // They do NOT update balances until confirmed by the receiver.
     final recordData = record.toJson();
     recordData['createdBy'] = user.uid;
-    recordData['status'] = SettlementStatus.pending.name;
+    recordData['status'] = confirmed ? SettlementStatus.confirmed.name : SettlementStatus.pending.name;
 
     await _settlementsCol(groupId).add(recordData);
     await _logActivity(
       groupId: groupId,
-      action: ActivityAction.settlementRecorded,
+      action: confirmed ? ActivityAction.settlementConfirmed : ActivityAction.settlementRecorded,
       targetName: "Payment to ${record.toName}",
       amount: record.amount,
     );

@@ -86,7 +86,8 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
     BuildContext context,
     AppState appState,
     List<SettlementTransaction> transactions,
-    Map<String, GroupMember> memberMap, {
+    Map<String, GroupMember> memberMap,
+    List<GroupMember> resolvedMembers, {
     required String currentMemberId,
   }) {
      showModalBottomSheet<void>(
@@ -115,7 +116,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                  transactions: transactions,
                  currentUserId: currentMemberId,
                 onPay: (t) => _launchUpi(t, appState),
-                 onRecord: (t) => _openRecordSettlement(appState, t),
+                 onRecord: (t) => _openRecordSettlement(appState, t, resolvedMembers),
                  onRemind: _sendWhatsappReminder,
                ),
              ),
@@ -892,6 +893,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
   Future<void> _openRecordSettlement(
     AppState appState,
     SettlementTransaction transaction,
+    List<GroupMember> resolvedMembers,
   ) async {
     final amountCtrl = TextEditingController(text: transaction.amount.toString());
     final noteCtrl = TextEditingController();
@@ -934,27 +936,35 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                       controller: noteCtrl,
                       decoration: const InputDecoration(labelText: 'Note (optional)'),
                     ),
-                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: () async {
                           if (!formKey.currentState!.validate()) return;
+                          
                           final record = SettlementRecord(
                             id: '',
                             fromMemberId: transaction.fromMemberId,
                             fromName: transaction.fromName,
                             toMemberId: transaction.toMemberId,
                             toName: transaction.toName,
-                                        amount: double.parse(amountCtrl.text.trim()),
+                            amount: double.parse(amountCtrl.text.trim()),
                             settledAt: DateTime.now(),
                             createdBy: widget.profile.uid,
                             note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
                           );
-                          await appState.addSettlement(groupId: _group.id, record: record);
+
+                          final myMemberId = _currentMemberId(resolvedMembers);
+                          final isReceiver = transaction.toMemberId == myMemberId;
+                          
+                          await appState.addSettlement(
+                            groupId: _group.id, 
+                            record: record,
+                            confirmed: isReceiver,
+                          );
                           if (sheetContext.mounted) Navigator.of(sheetContext).pop();
                         },
-                        child: const Text('Record Payment'),
+                        child: Text(transaction.toMemberId == _currentMemberId(resolvedMembers) ? 'Confirm Receipt' : 'Record Payment'),
                       ),
                     ),
                   ],
@@ -1134,13 +1144,14 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                     children: [
                                       Expanded(
                                         child: FilledButton.icon(
-                                          onPressed: () => _openSettleSheet(
-                                            context,
-                                            appState,
-                                            transactions,
-                                            memberMap,
-                                            currentMemberId: currentMemberId,
-                                          ),
+                                            onPressed: () => _openSettleSheet(
+                                              context,
+                                              appState,
+                                              transactions,
+                                              memberMap,
+                                              resolvedMembers,
+                                              currentMemberId: currentMemberId,
+                                            ),
                                           icon: const Icon(Icons.handshake_outlined),
                                           label: const Text('Bharat Dues Summary'),
                                           style: FilledButton.styleFrom(
