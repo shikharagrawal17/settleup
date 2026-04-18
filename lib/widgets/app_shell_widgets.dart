@@ -45,18 +45,20 @@ class AppSurface extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(20),
     this.borderRadius,
+    this.color,
   });
 
   final Widget child;
   final EdgeInsets padding;
   final BorderRadius? borderRadius;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: kSurface,
+        color: color ?? kSurface,
         borderRadius: borderRadius ?? BorderRadius.circular(12),
         border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
         boxShadow: [

@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../models/settlement_group.dart';
 import '../models/group_member.dart';
 import '../models/user_profile.dart';
+import '../models/expense.dart';
+import '../models/settlement_record.dart';
 import '../providers/app_state.dart';
 import '../widgets/app_shell_widgets.dart';
 import '../utils/settlement_helper.dart';
@@ -27,21 +31,28 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final appState = context.read<AppState>();
       appState.initMessaging();
       appState.loadLocalContacts();
 
-      // Check if profile is incomplete (missing UPI ID or Phone Number)
-      // and prompt the user immediately if so.
       if (widget.profile.upiId.isEmpty || (widget.profile.phoneNumber ?? '').isEmpty) {
         _editProfile(context, appState, widget.profile);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _openCreateGroup(
@@ -104,28 +115,28 @@ class _HomeScreenState extends State<HomeScreen> {
                       label: 'Account Name',
                       value: profile.displayName,
                     ),
-                    const SizedBox(height: 12),
-                    _ReadOnlyField(
-                      icon: Icons.email_outlined,
-                      label: 'Google Email',
-                      value: profile.email,
-                    ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     TextFormField(
                       controller: phoneController,
                       keyboardType: TextInputType.phone,
-                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+]'))],
                       decoration: const InputDecoration(
-                        labelText: 'Mobile Number',
+                        labelText: 'Phone Number',
                         prefixIcon: Icon(Icons.phone_outlined),
+                        hintText: '+91...',
                       ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) return 'Enter phone number';
+                        return null;
+                      },
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     TextFormField(
                       controller: upiController,
+                      textCapitalization: TextCapitalization.none,
                       decoration: const InputDecoration(
-                        labelText: 'UPI ID (e.g. name@upi)',
+                        labelText: 'UPI ID (Handle)',
                         prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                        hintText: 'username@bank',
                       ),
                       validator: (value) {
                         if (value != null && value.trim().isNotEmpty) {
@@ -227,7 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _handleDeleteGroup(AppState appState, String groupId, String groupName) async {
-    await appState.deleteGroup(groupId);
+    await appState.deleteGroup(groupId, widget.profile.displayName);
     if (!mounted) return;
     
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -236,7 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
         content: Text('Deleted "$groupName"'),
         action: SnackBarAction(
           label: 'Undo',
-          onPressed: () => appState.restoreGroup(groupId),
+          onPressed: () => appState.restoreGroup(groupId, widget.profile.displayName),
         ),
         duration: const Duration(seconds: 4),
       ),
@@ -289,169 +300,178 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               body: SafeArea(
                 child: AppBackdrop(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 140),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _DashboardSummary(
-                          profile: profile,
-                          groups: regularGroups,
-                          onEditProfile: () => _editProfile(context, appState, profile),
-                        ),
-                        const SizedBox(height: 24),
-                        const SectionHeading(
-                          title: 'Your Groups',
-                          subtitle: 'Circles for roommates, trips, and more.',
-                        ),
-                        const SizedBox(height: 14),
-                        if (regularGroups.isEmpty)
-                          _EmptyGroups(onCreate: () => _openCreateGroup(context, appState, profile))
-                        else
-                          _GroupList(
-                            groups: regularGroups,
-                            profile: profile,
-                            currentUserId: widget.user.uid,
-                            onDelete: (id) => _handleDeleteGroup(appState, id, regularGroups.firstWhere((g) => g.id == id).name),
+                  child: FutureBuilder<_HomeFinancials>(
+                    future: _calculateFinancials(appState, groups, profile), 
+                    builder: (context, finSnapshot) {
+                      final financials = finSnapshot.data ?? _HomeFinancials.empty();
+
+                      return Column(
+                        children: [
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(20, 20, 20, 140),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _DashboardSummary(
+                                    profile: profile,
+                                    financials: financials,
+                                    groupsCount: regularGroups.length,
+                                    onEditProfile: () => _editProfile(context, appState, profile),
+                                  ),
+                                  const SizedBox(height: 32),
+                                  
+                                  // Tab Header
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.03),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    padding: const EdgeInsets.all(4),
+                                    child: TabBar(
+                                      controller: _tabController,
+                                      dividerColor: Colors.transparent,
+                                      indicator: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(10),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.05),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      indicatorSize: TabBarIndicatorSize.tab,
+                                      labelColor: kPrimaryBlue,
+                                      unselectedLabelColor: Colors.black45,
+                                      labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                                      tabs: const [
+                                        Tab(text: 'GROUPS'),
+                                        Tab(text: 'FRIENDS'),
+                                        Tab(text: 'ACTIVITY'),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+
+                                  // Tab Content
+                                  ValueListenableBuilder<int>(
+                                    valueListenable: ValueNotifier(_tabController.index),
+                                    builder: (context, _, __) {
+                                      return AnimatedBuilder(
+                                        animation: _tabController,
+                                        builder: (context, _) {
+                                          if (_tabController.index == 0) {
+                                            return Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                const SectionHeading(
+                                                  title: 'Your Groups',
+                                                  subtitle: 'Circles for roommates, trips, and more.',
+                                                ),
+                                                const SizedBox(height: 14),
+                                                if (regularGroups.isEmpty)
+                                                  _EmptyGroups(onCreate: () => _openCreateGroup(context, appState, profile))
+                                                else
+                                                  _GroupList(
+                                                    groups: regularGroups,
+                                                    profile: profile,
+                                                    currentUserId: widget.user.uid,
+                                                    onDelete: (id) => _handleDeleteGroup(appState, id, regularGroups.firstWhere((g) => g.id == id).name),
+                                                  ),
+                                              ],
+                                            );
+                                          } else if (_tabController.index == 1) {
+                                            return Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                const SectionHeading(
+                                                  title: 'All Friends',
+                                                  subtitle: 'Net balances across all your circles.',
+                                                ),
+                                                const SizedBox(height: 14),
+                                                if (financials.friendBalances.isEmpty)
+                                                  const Center(
+                                                    child: Padding(
+                                                      padding: EdgeInsets.symmetric(vertical: 40),
+                                                      child: Text('No balances with friends yet.', style: TextStyle(color: Colors.black38)),
+                                                    ),
+                                                  )
+                                                else
+                                                  _FriendsList(financials: financials, currentProfile: profile),
+                                              ],
+                                            );
+                                          } else {
+                                            return _HomeActivityTab(
+                                              user: widget.user,
+                                              profile: profile,
+                                              appState: appState,
+                                            );
+                                          }
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                      ],
-                    ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),
             );
-          },
-        );
-  }
-}
-
-class _DashboardSummary extends StatelessWidget {
-  const _DashboardSummary({
-    required this.profile,
-    required this.groups,
-    required this.onEditProfile,
-  });
-
-  final UserProfile profile;
-  final List<SettlementGroup> groups;
-  final VoidCallback onEditProfile;
-
-  @override
-  Widget build(BuildContext context) {
-    final appState = context.read<AppState>();
-
-    return FutureBuilder<Map<String, double>>(
-      future: _calculateTotalBalances(appState, groups, profile),
-      builder: (context, snapshot) {
-        final data = snapshot.data ?? {'net': 0, 'owe': 0, 'owed': 0};
-        final net = data['net'] ?? 0;
-        final owe = data['owe'] ?? 0;
-        final owed = data['owed'] ?? 0;
-
-        return Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Hello, ${profile.displayName.split(' ').first}',
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        groups.isEmpty ? 'Start by adding a friend' : 'Your financial summary',
-                        style: const TextStyle(color: Colors.black45, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: kPrimaryBlue.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: kPrimaryBlue.withValues(alpha: 0.1)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('TOTAL NET BALANCE', 
-                    style: TextStyle(color: Colors.black38, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
-                  const SizedBox(height: 8),
-                  Text(
-                    '₹${formatAmount(net.abs())}',
-                    style: TextStyle(
-                      fontSize: 38,
-                      fontWeight: FontWeight.w700,
-                      color: net == 0 ? kDarkBlue : (net > 0 ? const Color(0xFF00A381) : Colors.redAccent),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(child: _MiniBalance(label: 'YOU OWE', amount: '₹${formatAmount(owe)}', color: Colors.red.shade700)),
-                      const SizedBox(width: 12),
-                      Expanded(child: _MiniBalance(label: 'YOU ARE OWED', amount: '₹${formatAmount(owed)}', color: const Color(0xFF00897B))),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: MetricPill(
-                    label: 'PAYOUT UPI ID',
-                    value: profile.hasUpiId ? profile.upiId : 'Not Set',
-                    highlight: profile.hasUpiId,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: MetricPill(
-                    label: 'ACTIVE GROUPS',
-                    value: '${groups.length}',
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
       },
     );
   }
 
-  Future<Map<String, double>> _calculateTotalBalances(AppState appState, List<SettlementGroup> groups, UserProfile profile) async {
+  Future<_HomeFinancials> _calculateFinancials(AppState appState, List<SettlementGroup> groups, UserProfile profile) async {
     double totalOwe = 0;
     double totalOwed = 0;
+    final Map<String, _FriendBalance> friendBalances = {};
+    final List<_PendingSettlementBatch> pendingSettlements = [];
+    
     final uid = profile.uid;
     final userPhone = (profile.phoneNumber != null && profile.phoneNumber!.isNotEmpty) 
         ? AppState.normalisePhone(profile.phoneNumber!) 
         : null;
 
     for (final group in groups) {
-      // Get current data for the group
+      if (group.isDeleted) continue;
+
       final expenses = await appState.expensesStream(group.id).first;
-      final settlements = await appState.settlementsStream(group.id).first;
+      final settlementsSnapshot = await appState.settlementsStream(group.id).first;
       
+      // Look for pending settlements related to me
+      for (final s in settlementsSnapshot) {
+        if (s.status == SettlementStatus.pending) {
+          final isReceiver = s.toMemberId == uid || (s.toMemberId.startsWith('manual_') && s.toName == profile.displayName);
+          final isPayer = s.fromMemberId == uid || (s.fromMemberId.startsWith('manual_') && s.fromName == profile.displayName);
+
+          if (isReceiver || isPayer) {
+            pendingSettlements.add(_PendingSettlementBatch(
+              groupId: group.id,
+              groupName: group.name,
+              record: s,
+              isWaitingForMe: isReceiver,
+            ));
+          }
+        }
+      }
+
       final balances = computeMemberBalances(
         members: group.members,
         expenses: expenses,
-        settlements: settlements,
+        settlements: settlementsSnapshot,
       );
       
-      // Identify ALL IDs in this group that belong to "Me"
-      double myNetBalance = 0;
-      bool foundMe = false;
-
+      double myNetRelGroup = 0;
+      final Set<String> myIdsInGroup = {};
+      String? myPrimaryIdInGroup;
+      
       for (final m in group.members) {
         final mPhone = (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) 
             ? AppState.normalisePhone(m.phoneNumber!) 
@@ -462,25 +482,929 @@ class _DashboardSummary extends StatelessWidget {
                      (userPhone != null && mPhone != null && mPhone == userPhone);
         
         if (isMe) {
-          myNetBalance += balances[m.id] ?? 0.0;
-          foundMe = true;
+          myNetRelGroup += balances[m.id] ?? 0.0;
+          myIdsInGroup.add(m.id);
+          myPrimaryIdInGroup ??= m.id;
         }
       }
 
-      if (foundMe) {
-        if (myNetBalance > 0.005) {
-          totalOwed += myNetBalance;
-        } else if (myNetBalance < -0.005) {
-          totalOwe += myNetBalance.abs();
+      if (myNetRelGroup > 0.005) {
+        totalOwed += myNetRelGroup;
+      } else if (myNetRelGroup < -0.005) {
+        totalOwe += myNetRelGroup.abs();
+      }
+
+      for (final m in group.members) {
+        if (myIdsInGroup.contains(m.id)) continue;
+        
+        final balance = balances[m.id] ?? 0.0;
+        if (balance.abs() < 0.005) continue;
+
+        final String friendKey = m.uid ?? 
+                                 (m.phoneNumber != null ? AppState.normalisePhone(m.phoneNumber!) : null) ?? 
+                                 'name_${m.name}';
+        
+        if (!friendBalances.containsKey(friendKey)) {
+          friendBalances[friendKey] = _FriendBalance(
+            name: m.name,
+            netBalance: 0,
+            upiId: m.upiId,
+            phoneNumber: m.phoneNumber,
+          );
         }
+        
+        friendBalances[friendKey]!.netBalance += balance;
+        friendBalances[friendKey]!.contributions.add(_GroupContribution(
+          groupId: group.id,
+          groupName: group.name,
+          myMemberId: myPrimaryIdInGroup ?? uid,
+          friendMemberId: m.id,
+          balance: balance,
+        ));
       }
     }
 
-    return {
-      'net': totalOwed - totalOwe,
-      'owe': totalOwe,
-      'owed': totalOwed,
-    };
+    friendBalances.removeWhere((k, v) => v.netBalance.abs() < 0.01);
+
+    return _HomeFinancials(
+      net: totalOwed - totalOwe,
+      owe: totalOwe,
+      owed: totalOwed,
+      friendBalances: friendBalances.values.toList()..sort((a, b) => b.netBalance.abs().compareTo(a.netBalance.abs())),
+      pendingSettlements: pendingSettlements,
+    );
+  }
+}
+
+class _HomeFinancials {
+  final double net;
+  final double owe;
+  final double owed;
+  final List<_FriendBalance> friendBalances;
+  final List<_PendingSettlementBatch> pendingSettlements;
+
+  _HomeFinancials({required this.net, required this.owe, required this.owed, required this.friendBalances, this.pendingSettlements = const []});
+
+  factory _HomeFinancials.empty() => _HomeFinancials(net: 0, owe: 0, owed: 0, friendBalances: []);
+}
+
+class _PendingSettlementBatch {
+  final String groupId;
+  final String groupName;
+  final SettlementRecord record;
+  final bool isWaitingForMe;
+
+  _PendingSettlementBatch({required this.groupId, required this.groupName, required this.record, required this.isWaitingForMe});
+}
+
+class _FriendBalance {
+  final String name;
+  double netBalance;
+  final String? upiId;
+  final String? phoneNumber;
+  final List<_GroupContribution> contributions = [];
+
+  _FriendBalance({required this.name, required this.netBalance, this.upiId, this.phoneNumber});
+}
+
+class _GroupContribution {
+  final String groupId;
+  final String groupName;
+  final String myMemberId;
+  final String friendMemberId;
+  final double balance;
+
+  _GroupContribution({
+    required this.groupId,
+    required this.groupName,
+    required this.myMemberId,
+    required this.friendMemberId,
+    required this.balance,
+  });
+}
+
+class _DashboardSummary extends StatelessWidget {
+  const _DashboardSummary({
+    required this.profile,
+    required this.financials,
+    required this.groupsCount,
+    required this.onEditProfile,
+  });
+
+  final UserProfile profile;
+  final _HomeFinancials financials;
+  final int groupsCount;
+  final VoidCallback onEditProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    final net = financials.net;
+    final owe = financials.owe;
+    final owed = financials.owed;
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Hello, ${profile.displayName.split(' ').first}',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    groupsCount == 0 ? 'Start by adding a friend' : 'Your financial summary',
+                    style: const TextStyle(color: Colors.black45, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: kPrimaryBlue.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: kPrimaryBlue.withValues(alpha: 0.1)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('TOTAL NET BALANCE', 
+                style: TextStyle(color: Colors.black38, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+              const SizedBox(height: 8),
+              Text(
+                '₹${formatAmount(net.abs())}',
+                style: TextStyle(
+                  fontSize: 38,
+                  fontWeight: FontWeight.w700,
+                  color: net.abs() < 0.01 ? kDarkBlue : (net > 0 ? const Color(0xFF00A381) : Colors.redAccent),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: _MiniBalance(label: 'YOU OWE', amount: '₹${formatAmount(owe)}', color: Colors.red.shade700)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _MiniBalance(label: 'YOU ARE OWED', amount: '₹${formatAmount(owed)}', color: const Color(0xFF00897B))),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: MetricPill(
+                label: 'PAYOUT UPI ID',
+                value: profile.hasUpiId ? profile.upiId : 'Not Set',
+                highlight: profile.hasUpiId,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: MetricPill(
+                label: 'ACTIVE GROUPS',
+                value: '$groupsCount',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _FriendsList extends StatelessWidget {
+  const _FriendsList({required this.financials, required this.currentProfile});
+  final _HomeFinancials financials;
+  final UserProfile currentProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (financials.pendingSettlements.isNotEmpty) ...[
+          const SectionHeading(
+            title: 'Pending Verify',
+            subtitle: 'Confirm receipts or track your updates.',
+          ),
+          const SizedBox(height: 12),
+          ...financials.pendingSettlements.map((s) => _PendingSettlementCard(pending: s)),
+          const SizedBox(height: 24),
+          const Divider(height: 1),
+          const SizedBox(height: 24),
+        ],
+        ...financials.friendBalances.map((friend) {
+        final net = friend.netBalance;
+        final color = net > 0 ? Colors.redAccent : const Color(0xFF00897B);
+        final statusText = net > 0 ? 'You owe' : 'Owes you';
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: AppSurface(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: kPrimaryBlue.withValues(alpha: 0.1),
+                  child: Text(friend.name[0], style: const TextStyle(color: kPrimaryBlue, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(friend.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                      Text(statusText, style: const TextStyle(color: Colors.black38, fontSize: 11)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '₹${formatAmount(net.abs())}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (net < -0.01 && friend.phoneNumber != null)
+                          IconButton(
+                            onPressed: () async {
+                              final text = 'Hey ${friend.name}, just a friendly reminder about the ₹${formatAmount(net.abs())} balance in our Bharat Dues groups. Please settle when you can! 😉';
+                              final url = Uri.parse('whatsapp://send?phone=${friend.phoneNumber}&text=${Uri.encodeComponent(text)}');
+                              if (await canLaunchUrl(url)) {
+                                await launchUrl(url);
+                              }
+                            },
+                            icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF25D366), size: 18),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            tooltip: 'Remind on WhatsApp',
+                          ),
+                        if (net > 0.01 && friend.upiId != null)
+                          IconButton(
+                            onPressed: () async {
+                              final url = Uri.parse('upi://pay?pa=${friend.upiId}&pn=${Uri.encodeComponent(friend.name)}&am=${formatAmount(net.abs())}&cu=INR');
+                              if (await canLaunchUrl(url)) {
+                                await launchUrl(url);
+                              }
+                            },
+                            icon: const Icon(Icons.account_balance_wallet_outlined, color: kPrimaryBlue, size: 18),
+                            padding: const EdgeInsets.only(left: 10),
+                            constraints: const BoxConstraints(),
+                            tooltip: 'Pay via UPI',
+                          ),
+                        const SizedBox(width: 10),
+                        TextButton(
+                          onPressed: () => _openSettleAllSheet(context, friend, currentProfile),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            backgroundColor: kPrimaryBlue.withValues(alpha: 0.05),
+                          ),
+                          child: const Text('Settle all', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+      ],
+    );
+  }
+
+  void _openSettleAllSheet(BuildContext context, _FriendBalance friend, UserProfile currentProfile) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _SettleAllSheet(friend: friend, currentProfile: currentProfile),
+    );
+  }
+}
+
+class _PendingSettlementCard extends StatelessWidget {
+  const _PendingSettlementCard({required this.pending});
+  final _PendingSettlementBatch pending;
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = context.read<AppState>();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: AppSurface(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(
+              pending.isWaitingForMe ? Icons.timer_outlined : Icons.outbox_rounded, 
+              color: pending.isWaitingForMe ? Colors.amber : Colors.black26, 
+              size: 20
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    pending.isWaitingForMe 
+                      ? '${pending.record.fromName} paid you' 
+                      : 'You paid ${pending.record.toName}', 
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: kDarkBlue)
+                  ),
+                  Text('In ${pending.groupName}', style: const TextStyle(color: Colors.black38, fontSize: 11)),
+                ],
+              ),
+            ),
+            Text('₹${formatAmount(pending.record.amount)}', 
+              style: TextStyle(
+                fontWeight: FontWeight.w800, 
+                fontSize: 14, 
+                color: pending.isWaitingForMe ? const Color(0xFF00897B) : Colors.black45
+              )
+            ),
+            if (pending.isWaitingForMe) ...[
+              const SizedBox(width: 12),
+              IconButton(
+                onPressed: () => appState.disputeSettlement(groupId: pending.groupId, settlementId: pending.record.id),
+                icon: const Icon(Icons.close, color: Colors.redAccent, size: 18),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => appState.confirmSettlement(groupId: pending.groupId, record: pending.record),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: const Color(0xFF00897B).withValues(alpha: 0.1),
+                  foregroundColor: const Color(0xFF00897B),
+                ),
+                child: const Text('Confirm', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+              ),
+            ] else 
+              const Padding(
+                padding: EdgeInsets.only(left: 12),
+                child: Text('Pending', style: TextStyle(color: Colors.black26, fontSize: 10, fontWeight: FontWeight.w700)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettleAllSheet extends StatefulWidget {
+  const _SettleAllSheet({required this.friend, required this.currentProfile});
+  final _FriendBalance friend;
+  final UserProfile currentProfile;
+
+  @override
+  State<_SettleAllSheet> createState() => _SettleAllSheetState();
+}
+
+class _SettleAllSheetState extends State<_SettleAllSheet> {
+  bool _isProcessing = false;
+  bool _paymentInitiated = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final net = widget.friend.netBalance;
+    final isIowe = net > 0;
+    
+    return DraggableScrollableSheet(
+      initialChildSize: 0.8,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (_, controller) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 40),
+          children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 32),
+            // Rupee Seal / Identity
+            Center(
+              child: Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: (isIowe ? Colors.redAccent : const Color(0xFF00897B)).withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: (isIowe ? Colors.redAccent : const Color(0xFF00897B)).withValues(alpha: 0.2), width: 2),
+                ),
+                child: Center(
+                  child: Text(
+                    isIowe ? '₹' : '✓', 
+                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: isIowe ? Colors.redAccent : const Color(0xFF00897B))
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Center(
+              child: Text(
+                isIowe ? 'Global Payment' : 'Record Global Receipt', 
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 22, letterSpacing: -0.5)
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                isIowe ? 'Settling balance with ${widget.friend.name}' : 'You received payment from ${widget.friend.name}',
+                style: const TextStyle(color: Colors.black45, fontSize: 13),
+              ),
+            ),
+            const SizedBox(height: 32),
+            // Transaction Details Card
+            AppSurface(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total Net Balance', style: TextStyle(color: Colors.black38, fontSize: 13)),
+                      Text(
+                        '₹${formatAmount(net.abs())}', 
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 22, color: isIowe ? Colors.redAccent : const Color(0xFF00897B))
+                      ),
+                    ],
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Divider(color: Colors.black12),
+                  ),
+                  Row(
+                    children: [
+                      Text(isIowe ? 'Payable to: ' : 'From: ', style: const TextStyle(color: Colors.black38, fontSize: 13)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          widget.friend.name,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: kDarkBlue),
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            const Text('BREAKDOWN ACROSS GROUPS', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 10, letterSpacing: 1.2, color: Colors.black38)),
+            const SizedBox(height: 16),
+            Column(
+              children: widget.friend.contributions.map((contra) {
+                final iOweThis = contra.balance > 0;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 4, height: 32,
+                        decoration: BoxDecoration(color: iOweThis ? Colors.redAccent : const Color(0xFF00897B), borderRadius: BorderRadius.circular(2)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(contra.groupName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                            Text(iOweThis ? 'You owe' : 'Owes you', style: const TextStyle(color: Colors.black38, fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                      Text('₹${formatAmount(contra.balance.abs())}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 32),
+            const Divider(height: 1),
+            const SizedBox(height: 32),
+            
+            // Payment Actions
+            if (isIowe) ...[
+              if (widget.friend.upiId != null && widget.friend.upiId!.isNotEmpty) ...[
+                if (!_paymentInitiated) ...[
+                  _SettleQrBox(
+                    upiId: widget.friend.upiId!,
+                    name: widget.friend.name,
+                    amount: net.abs(),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => _handlePay(widget.friend.upiId!, widget.friend.name, net.abs()),
+                      icon: const Icon(Icons.account_balance_wallet_outlined, size: 20),
+                      label: const Text('Pay via UPI App', style: TextStyle(fontWeight: FontWeight.w700)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: kPrimaryBlue,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  const Icon(Icons.check_circle_outline, color: kPrimaryBlue, size: 48),
+                  const SizedBox(height: 16),
+                  const Text('Payment App Launched', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  const SizedBox(height: 8),
+                  const Text('Confirm here once you finish the transfer.', style: TextStyle(color: Colors.black45, fontSize: 13)),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: _isProcessing ? null : _settleAll,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF00897B),
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: _isProcessing 
+                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text('Confirm & Record Globally', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() => _paymentInitiated = false),
+                    child: const Text('Go back', style: TextStyle(color: Colors.black38)),
+                  ),
+                ],
+              ] else ...[
+                const AppSurface(
+                  padding: EdgeInsets.all(16),
+                  color: Color(0x0A000000),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Friend hasn\'t set up a UPI ID yet.', style: TextStyle(fontSize: 12, color: Colors.black54))),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _isProcessing ? null : _settleAll,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                    ),
+                    child: const Text('Record Cash Payment Globally'),
+                  ),
+                ),
+              ],
+            ] else ...[
+              // Receiver Side
+              if (widget.currentProfile.hasUpiId) ...[
+                _SettleQrBox(
+                  upiId: widget.currentProfile.upiId,
+                  name: widget.currentProfile.displayName,
+                  amount: net.abs(),
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _shareMyUpi,
+                        icon: const Icon(Icons.share_rounded, size: 18),
+                        label: const Text('Share Link'),
+                        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: FilledButton(
+                        onPressed: _isProcessing ? null : _settleAll,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF00897B),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: _isProcessing 
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Text('Confirm Receipt', style: TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                // No UPI set for me
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _isProcessing ? null : _settleAll,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF00897B),
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                    ),
+                    child: const Text('Confirm Receipt'),
+                  ),
+                ),
+              ],
+            ],
+            const SizedBox(height: 24),
+            const Text(
+              'Recording this will settle the net balance across all groups listed above.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.black12, fontSize: 11, fontStyle: FontStyle.italic),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _settleAll() async {
+    setState(() => _isProcessing = true);
+    final appState = context.read<AppState>();
+    
+    try {
+      for (final contra in widget.friend.contributions) {
+        final fromId = contra.balance > 0 ? contra.myMemberId : contra.friendMemberId;
+        final toId = contra.balance > 0 ? contra.friendMemberId : contra.myMemberId;
+        
+        final isIoweThis = contra.balance > 0;
+
+        await appState.addSettlement(
+          groupId: contra.groupId,
+          record: SettlementRecord(
+            id: '',
+            fromMemberId: fromId,
+            toMemberId: toId,
+            fromName: isIoweThis ? widget.currentProfile.displayName : widget.friend.name,
+            toName: isIoweThis ? widget.friend.name : widget.currentProfile.displayName,
+            amount: contra.balance.abs(),
+            settledAt: DateTime.now(),
+            status: isIoweThis ? SettlementStatus.pending : SettlementStatus.confirmed, // If I say he paid me, I confirm. If I say I paid him, he confirms.
+            createdBy: widget.currentProfile.uid,
+          ),
+          confirmed: !isIoweThis,
+        );
+      }
+      if (mounted) Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _handlePay(String upiId, String name, double amount) async {
+    final launched = await _launchUpi(upiId, name, amount);
+    if (launched && mounted) {
+      setState(() => _paymentInitiated = true);
+    }
+  }
+
+  Future<void> _shareMyUpi() async {
+    final net = widget.friend.netBalance.abs();
+    final url = 'upi://pay?pa=${widget.currentProfile.upiId}&pn=${Uri.encodeComponent(widget.currentProfile.displayName)}&am=${formatAmount(net)}&cu=INR';
+    final message = 'Hey ${widget.friend.name}, please pay ₹${formatAmount(net)} for our shared expenses on Bharat Dues. You can pay here: $url';
+    await Share.share(message, subject: 'Payment Request');
+  }
+
+  Future<bool> _launchUpi(String upiId, String name, double amount) async {
+    final url = Uri.parse('upi://pay?pa=$upiId&pn=${Uri.encodeComponent(name)}&am=${formatAmount(amount)}&cu=INR');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+      return true;
+    } else {
+      Clipboard.setData(ClipboardData(text: upiId));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('UPI ID copied to clipboard')));
+      return false;
+    }
+  }
+}
+
+class _SettleQrBox extends StatelessWidget {
+  const _SettleQrBox({required this.upiId, required this.name, required this.amount});
+  final String upiId;
+  final String name;
+  final double amount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: QrImageView(
+          data: 'upi://pay?pa=$upiId&pn=${Uri.encodeComponent(name)}&am=${formatAmount(amount)}&cu=INR',
+          version: QrVersions.auto,
+          size: 160.0,
+          eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.circle, color: kDarkBlue),
+          dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.circle, color: kDarkBlue),
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeActivityTab extends StatelessWidget {
+  const _HomeActivityTab({
+    required this.user,
+    required this.profile,
+    required this.appState,
+  });
+
+  final User user;
+  final UserProfile profile;
+  final AppState appState;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<SettlementGroup>>(
+      stream: appState.groupsWithDeletedStream(uid: profile.uid, phoneNumber: profile.phoneNumber),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator(color: kPrimaryBlue)));
+        }
+
+        final allGroups = snapshot.data ?? [];
+        if (allGroups.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Text('No group activities to show.', style: TextStyle(color: Colors.black38)),
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionHeading(
+              title: 'Global Activity',
+              subtitle: 'Track your groups and restorations.',
+            ),
+            const SizedBox(height: 14),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: allGroups.length,
+              itemBuilder: (context, index) {
+                final group = allGroups[index];
+                return _GlobalActivityCard(group: group, appState: appState, currentProfile: profile);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _GlobalActivityCard extends StatelessWidget {
+  const _GlobalActivityCard({required this.group, required this.appState, required this.currentProfile});
+  final SettlementGroup group;
+  final AppState appState;
+  final UserProfile currentProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDeleted = group.isDeleted;
+    final timestamp = isDeleted ? (group.updatedAt ?? group.createdAt ?? DateTime.now()) : (group.createdAt ?? DateTime.now());
+    
+    final actor = group.lastActionBy ?? 'Someone';
+    final actionName = group.lastActionType ?? (isDeleted ? 'deleted' : 'created');
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AppSurface(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _getBgColor(actionName),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _getIcon(actionName),
+                color: _getIconColor(actionName),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RichText(
+                    text: TextSpan(
+                      style: const TextStyle(fontSize: 13, color: kDarkBlue, height: 1.4),
+                      children: [
+                        TextSpan(text: actor, style: const TextStyle(fontWeight: FontWeight.w800)),
+                        TextSpan(text: ' $actionName ', style: const TextStyle(fontWeight: FontWeight.w400, color: Colors.black54)),
+                        TextSpan(text: '"${group.name}"', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        _formatDateTime(timestamp),
+                        style: const TextStyle(color: Colors.black38, fontSize: 11),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('•', style: TextStyle(color: Colors.black12, fontSize: 10)),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${group.members.length} members',
+                        style: const TextStyle(color: Colors.black38, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (isDeleted)
+              TextButton.icon(
+                onPressed: () {
+                  appState.restoreGroup(group.id, currentProfile.displayName);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Restored "${group.name}"')),
+                  );
+                },
+                icon: const Icon(Icons.restore, size: 16),
+                label: const Text('Restore', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                style: TextButton.styleFrom(foregroundColor: kPrimaryBlue),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getBgColor(String type) {
+    if (type == 'deleted') return Colors.redAccent.withValues(alpha: 0.1);
+    if (type == 'restored') return const Color(0xFF00A381).withValues(alpha: 0.1);
+    return kPrimaryBlue.withValues(alpha: 0.1);
+  }
+
+  Color _getIconColor(String type) {
+    if (type == 'deleted') return Colors.redAccent;
+    if (type == 'restored') return const Color(0xFF00A381);
+    return kPrimaryBlue;
+  }
+
+  IconData _getIcon(String type) {
+    if (type == 'deleted') return Icons.delete_sweep_outlined;
+    if (type == 'restored') return Icons.settings_backup_restore_rounded;
+    return Icons.add_home_work_outlined;
+  }
+
+  String _formatDateTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${dt.day}/${dt.month}/${dt.year}';
   }
 }
 
@@ -680,8 +1604,6 @@ class _ReadOnlyField extends StatelessWidget {
     );
   }
 }
-
-// Unused widgets removed
 
 class _EmptyGroups extends StatelessWidget {
   const _EmptyGroups({required this.onCreate});

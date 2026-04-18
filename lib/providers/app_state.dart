@@ -591,6 +591,30 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// All groups where the current user is a member, including deleted ones.
+  Stream<List<SettlementGroup>> groupsWithDeletedStream({required String uid, String? phoneNumber}) {
+    final identifiers = <String>[uid];
+    if (phoneNumber != null && phoneNumber.isNotEmpty) {
+      identifiers.add(normalisePhone(phoneNumber));
+    }
+
+    return _groupsCol
+        .where('memberIdentifiers', arrayContainsAny: identifiers)
+        .snapshots()
+        .map((snap) {
+      final items = snap.docs
+          .map((doc) => SettlementGroup.fromJson(doc.id, doc.data()))
+          .toList();
+      items.sort((a, b) {
+        final dateA = a.updatedAt ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final dateB = b.updatedAt ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return dateB.compareTo(dateA);
+      });
+      return items;
+    });
+  }
+
+
   /// Single group stream — used to detect edits made by other members.
   Stream<SettlementGroup?> groupStream(String groupId) {
     return _groupDoc(groupId).snapshots().map((snap) {
@@ -654,19 +678,31 @@ class AppState extends ChangeNotifier {
       'isDeleted': false,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
+      'lastActionBy': profile.displayName,
+      'lastActionType': 'created',
     });
   }
 
-  Future<void> deleteGroup(String groupId) async {
+  Future<void> deleteGroup(String groupId, String actorName) async {
     await _groupDoc(groupId).set(
-      {'isDeleted': true, 'updatedAt': FieldValue.serverTimestamp()},
+      {
+        'isDeleted': true, 
+        'updatedAt': FieldValue.serverTimestamp(),
+        'lastActionBy': actorName,
+        'lastActionType': 'deleted',
+      },
       SetOptions(merge: true),
     );
   }
 
-  Future<void> restoreGroup(String groupId) async {
+  Future<void> restoreGroup(String groupId, String actorName) async {
     await _groupDoc(groupId).set(
-      {'isDeleted': false, 'updatedAt': FieldValue.serverTimestamp()},
+      {
+        'isDeleted': false, 
+        'updatedAt': FieldValue.serverTimestamp(),
+        'lastActionBy': actorName,
+        'lastActionType': 'restored',
+      },
       SetOptions(merge: true),
     );
   }

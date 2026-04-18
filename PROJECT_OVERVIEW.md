@@ -29,8 +29,12 @@ This document provides a distilled overview of the current system state, design 
 4. **Smart Expense Logic**: 
    - **Split Modes**: Supports Equal, Percentage, Shares (Multiplier), and Exact Amount modalities.
    - **Rounding Safety**: Cent-based truncation/distribution ensures `Total == sum(Shares)` within ₹0.01 tolerance.
-5. **UPI Automation**: Integrated intent deep-linking (`upi://pay`) for seamless payments without leaving the context.
-6. **Activity Auditing**: Automatic logging of all structural changes with "before/after" metadata in the activities feed.
+5. **UPI Automation**: Integrated intent deep-linking (`upi://pay`) and bidirectional QR codes (Receiver scans Payer's URL OR Payer scans Receiver's QR).
+6. **Activity Auditing**: Automatic logging of all structural changes with "before/after" metadata in the per-group and global activities feed.
+7. **Global Dashboard**:
+   - **Financial Command Center**: Aggregates balances, member phone numbers, and UPI IDs across all active groups.
+   - **Friends Tab**: Cross-group settlement engine with integrated WhatsApp reminders and "Settle All" batch recording.
+   - **Handshake Trust**: Enforces a global settlement state (Pending/Confirmed/Disputed) to ensure cross-group balances stay accurate and mutually agreed upon.
 
 ## 🛡️ Security & Integrity
 - **Membership Guard**: Firestore Rules ensure data isolation, restricting reads/writes to members listed in `memberIdentifiers`.

@@ -27,10 +27,14 @@ Unlike local-only apps, Bharat Dues uses a **Shared-to-Cloud architecture**.
 *   **Detailed Activity Logs**: A dedicated `activities` feed tracks exactly what changed (amount, description, category, or members) with "before and after" details.
 *   **Soft Deletes**: Safety mechanisms for group and expense deletion with restoration capabilities.
 
-### 💳 Deep UPI Integration
-*   **One-Click Pay**: Launches UPI apps (GPay, PhonePe, Paytm, etc.) directly with pre-filled amounts and payee details.
-*   **Settlement Share**: Generate formatted WhatsApp summaries with embedded UPI payment links.
-*   **Two-Way Handshake**: Balances only clear when the receiver confirms receipt, preventing disputed cash/UPI transfers.
+*   **One-Click Pay**: Launches UPI apps (GPay, PhonePe, Paytm, etc.) directly with pre-filled amounts and payee details. Supports bidirectional QR codes (scan - they pay you, show - you pay them).
+*   **Settlement Share**: Generate formatted WhatsApp summaries with embedded UPI payment links and direct WhatsApp reminders.
+*   **Handshake Lifecycle**: Global and individual settlements use a Pending -> Confirmed/Disputed flow, requiring a handshake for total financial trust.
+
+### 🏠 Global Dashboard (Home)
+*   **Command Center**: Unified view of total net balance across all your groups.
+*   **Friends Tab**: Command hub for cross-group settlements. Remind debt-ridden friends on WhatsApp or pay your dues globally in one shot.
+*   **Global Activity Tab**: Real-time trail of group creation, deletion, and restoration across your entire ledger profile.
 
 ### 🛡️ Production & Stability
 *   **Responsive Redesign**: Immersive, safe-area aware modals and glassmorphic UI elements.
