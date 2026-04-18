@@ -1245,25 +1245,28 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                         tabs: [
                                           const Tab(text: 'EXPENSES'),
                                           Tab(
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const Text('ACTIVITY'),
-                                                if (settlements.any((s) => s.status != SettlementStatus.confirmed)) ...[
-                                                  const SizedBox(width: 6),
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.redAccent,
-                                                      borderRadius: BorderRadius.circular(10),
+                                            child: FittedBox(
+                                              fit: BoxFit.scaleDown,
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const Text('ACTIVITY'),
+                                                  if (settlements.any((s) => s.status != SettlementStatus.confirmed)) ...[
+                                                    const SizedBox(width: 4),
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.redAccent,
+                                                        borderRadius: BorderRadius.circular(10),
+                                                      ),
+                                                      child: Text(
+                                                        '${settlements.where((s) => s.status != SettlementStatus.confirmed).length}',
+                                                        style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800),
+                                                      ),
                                                     ),
-                                                    child: Text(
-                                                      '${settlements.where((s) => s.status != SettlementStatus.confirmed).length}',
-                                                      style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800),
-                                                    ),
-                                                  ),
+                                                  ],
                                                 ],
-                                              ],
+                                              ),
                                             ),
                                           ),
                                           const Tab(text: 'BALANCES'),
