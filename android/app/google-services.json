@@ -8,14 +8,14 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:455221731717:android:9326169d49f47034f364ec",
+        "mobilesdk_app_id": "1:455221731717:android:5ecaae434a5ba645f364ec",
         "android_client_info": {
           "package_name": "com.example.bharat_dues"
         }
       },
       "oauth_client": [
         {
-          "client_id": "455221731717-n17uken14jlgaef6sotuej401jj1un4k.apps.googleusercontent.com",
+          "client_id": "455221731717-u35vin08qr2fjpcqvjg9nnhnieueu96v.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.bharat_dues",
@@ -43,7 +43,51 @@
               "client_id": "455221731717-m0jqkjlss40jnhoa2olhqhgcuqnjgump.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.bharatDues"
+                "bundle_id": "com.example.settleupLite"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:455221731717:android:9326169d49f47034f364ec",
+        "android_client_info": {
+          "package_name": "com.example.settleup_lite"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "455221731717-n17uken14jlgaef6sotuej401jj1un4k.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.settleup_lite",
+            "certificate_hash": "58312a82c09ce87434d73a26220bdeac0b20d4a9"
+          }
+        },
+        {
+          "client_id": "455221731717-fa0f1poe64lqtrql92dhhackd55psmd3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBXyg-avp3-_KJ9mGzPS6PM9Vzse3AR0ws"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "455221731717-fa0f1poe64lqtrql92dhhackd55psmd3.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "455221731717-m0jqkjlss40jnhoa2olhqhgcuqnjgump.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.settleupLite"
               }
             }
           ]

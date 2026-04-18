@@ -751,7 +751,7 @@ class _FriendsList extends StatelessWidget {
                               final text = 'Hey ${friend.name}, just a friendly reminder about the ₹${formatAmount(net.abs())} balance in our Bharat Dues groups. Please settle when you can! 😉';
                               final url = Uri.parse('whatsapp://send?phone=${friend.phoneNumber}&text=${Uri.encodeComponent(text)}');
                               if (await canLaunchUrl(url)) {
-                                await launchUrl(url);
+                                await launchUrl(url, mode: LaunchMode.externalApplication);
                               }
                             },
                             icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF25D366), size: 18),
@@ -764,7 +764,7 @@ class _FriendsList extends StatelessWidget {
                             onPressed: () async {
                               final url = Uri.parse('upi://pay?pa=${friend.upiId}&pn=${Uri.encodeComponent(friend.name)}&am=${formatAmount(net.abs())}&cu=INR');
                               if (await canLaunchUrl(url)) {
-                                await launchUrl(url);
+                                await launchUrl(url, mode: LaunchMode.externalApplication);
                               }
                             },
                             icon: const Icon(Icons.account_balance_wallet_outlined, color: kPrimaryBlue, size: 18),
@@ -1155,12 +1155,19 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
     setState(() => _isProcessing = true);
     final appState = context.read<AppState>();
     
+    // Logic: If on net I am receiving money (or square), I (the receiver) am recording this.
+    // Thus, all individual transactions should be auto-confirmed (handshaked).
+    // If on net I am paying, I am recording an outbound payment, so all should stay pending.
+    final globalNet = widget.friend.netBalance;
+    final isIoweGlobal = globalNet > 0.005;
+    final shouldConfirmAll = !isIoweGlobal;
+
     try {
       for (final contra in widget.friend.contributions) {
         final fromId = contra.balance > 0 ? contra.myMemberId : contra.friendMemberId;
         final toId = contra.balance > 0 ? contra.friendMemberId : contra.myMemberId;
         
-        final isIoweThis = contra.balance > 0;
+        final isIoweThisGroup = contra.balance > 0;
 
         await appState.addSettlement(
           groupId: contra.groupId,
@@ -1168,14 +1175,14 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
             id: '',
             fromMemberId: fromId,
             toMemberId: toId,
-            fromName: isIoweThis ? widget.currentProfile.displayName : widget.friend.name,
-            toName: isIoweThis ? widget.friend.name : widget.currentProfile.displayName,
+            fromName: isIoweThisGroup ? widget.currentProfile.displayName : widget.friend.name,
+            toName: isIoweThisGroup ? widget.friend.name : widget.currentProfile.displayName,
             amount: contra.balance.abs(),
             settledAt: DateTime.now(),
-            status: isIoweThis ? SettlementStatus.pending : SettlementStatus.confirmed, // If I say he paid me, I confirm. If I say I paid him, he confirms.
+            status: shouldConfirmAll ? SettlementStatus.confirmed : SettlementStatus.pending,
             createdBy: widget.currentProfile.uid,
           ),
-          confirmed: !isIoweThis,
+          confirmed: shouldConfirmAll,
         );
       }
       if (mounted) Navigator.pop(context);

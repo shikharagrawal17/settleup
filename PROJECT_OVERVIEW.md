@@ -1,56 +1,46 @@
 # Bharat Dues: Project Architecture & Status
 
-This document provides a distilled overview of the current system state, design decisions, and architectural implementation as of the production-grade rebranding.
+This document provides a distilled overview of the system state, design decisions, and architectural implementation for **Bharat Dues**.
 
 ## 核心 (Core) Architecture
 - **Tech Stack**: Flutter + Firebase (Firestore/Auth/Messaging).
-- **Multi-Platform Support**: Optimized for **Android**, **iOS**, **macOS**, and **Web**.
-- **Financial Precision**: Migrated to a **double-precision** system supporting 2-decimal currency values with cent-based rounding for consistent splitting.
+- **Multi-Platform Support**: Optimized for **Android**, **iOS**, and **Web (Wasm/PWA)**.
+- **Financial Precision**: Uses a **double-precision** system with **Epsilon Validation** (`< 0.01`) for consistent multi-member splitting and settlement tracking.
 - **Authentication & Identity**: 
-  - **Google Login**: Primary OAuth-based sign-in (Cross-platform GSI integration).
-  - **Identity Linking**: Automatic mapping of legacy member IDs to registered user UIDs via specialized `registries` collection.
-  - **Identity-Aware Balances**: Global financial tracking that aggregates debts across manual IDs, phone numbers, and UIDs to prevent fragmented reporting.
-  - **Phone Discovery**: Real-time group visibility for invited members via phone number normalization and indexing.
+  - **Google Login**: Primary OAuth-based sign-in.
+  - **Identity Linking**: Automatic mapping of legacy manual IDs to registered UIDs.
+  - **Phone-First Discovery**: Real-time group visibility for invited members via phone number normalization and indexing in the `registries` collection.
 - **Data Model (Firestore)**:
-  - `groups/{groupId}`: Main document containing members array, accounting metadata, and `memberIdentifiers`.
-  - `groups/{groupId}/expenses`: Collection of shared expense records with granular share-breakdowns.
-  - `groups/{groupId}/activities`: Detailed audit trail documenting every modification (e.g., "description changed", "amount from ₹10 to ₹20").
-  - `groups/{groupId}/settlements`: Two-way confirmation payment records (Pending vs Confirmed).
-  - `users/{uid}`: Private user profile containing PII (email, settings).
-  - `publicUsers/{uid}`: Minimal public details (displayName, photoUrl, upiId) for global member resolution.
-  - `registries/{key}`: Registry for mapping `phone_+91...` or `email_...` to `uid` for instant member discovery.
+  - `groups/{groupId}`: Shared-ledger document with members, analytics, and activity trails.
+  - `groups/{groupId}/settlements`: High-trust payment records (Pending -> Confirmed/Disputed).
+  - `registries/{phoneKey}`: Lookup for mapping invitation phone numbers to active UIDs.
 
-## 🛠️ Key Features
-1. **Premium Fintech UI**: Immersive **Fintech Light Theme** with vibrant blue accents (`#00B9F1`), minimalist white surfaces, and high-contrast typography optimized for accessibility.
-2. **Strict Financial Input**: Enforced numeric-only keyboards and decimal-safe input formatters across all currency and contact fields (+91 support).
-3. **Real-Time Sync**: Firestore-backed streams ensuring all members see updates (expenses, settlements, and member edits) instantly.
-  3. **Simplified Settlement**: Greedy debt-minimization algorithm reduces transfers across complex group topologies.
-  4. **Smart Approval Flow**: Auto-confirmation logic that bypasses approval steps when the payment receiver is the one recording the manual transaction.
-4. **Smart Expense Logic**: 
-   - **Split Modes**: Supports Equal, Percentage, Shares (Multiplier), and Exact Amount modalities.
-   - **Rounding Safety**: Cent-based truncation/distribution ensures `Total == sum(Shares)` within ₹0.01 tolerance.
-5. **UPI Automation**: Integrated intent deep-linking (`upi://pay`) and bidirectional QR codes (Receiver scans Payer's URL OR Payer scans Receiver's QR).
-6. **Activity Auditing**: Automatic logging of all structural changes with "before/after" metadata in the per-group and global activities feed.
-7. **Global Dashboard**:
-   - **Financial Command Center**: Aggregates balances, member phone numbers, and UPI IDs across all active groups.
-   - **Friends Tab**: Cross-group settlement engine with integrated WhatsApp reminders and "Settle All" batch recording.
-   - **Handshake Trust**: Enforces a global settlement state (Pending/Confirmed/Disputed) to ensure cross-group balances stay accurate and mutually agreed upon.
+## 🛠️ Key Features & Logic
+1. **Premium Fintech UI**: High-performance Light Theme with glassmorphic surfaces and vibrant blue accents (`#00B9F1`).
+2. **Unified Financial Dashboard**:
+   - **Friends Tab**: Aggregates net balances across all groups.
+   - **Global Netting Architecture**: Recording a global receipt automatically confirms all underlying group-level transactions, significantly reducing UI noise and "pending" notifications.
+3. **Advanced Settlement Engine**:
+   - **Handshake Lifecycle**: Every global settlement requires mutual agreement.
+   - **Bidirectional UPI**: Integrated deep-linking and dynamic QR generation for inbound and outbound payments.
+   - **WhatsApp Automation**: Formatted sharing of payment requests and reminders with friend-specific balance details.
+4. **Precision Expense Logic**: 
+   - **Split Modes**: Equal, Percentage, Shares, and Exact Amount.
+   - **Cent-Based Rounding**: Ensures `Total == sum(Shares)` within ₹0.01 tolerance across any number of members.
 
 ## 🛡️ Security & Integrity
-- **Membership Guard**: Firestore Rules ensure data isolation, restricting reads/writes to members listed in `memberIdentifiers`.
-- **Soft Deletes**: `isDeleted` flags on groups and expenses ensure data recoverability.
-- **Precision Validation**: Epsilon-based equality checks (`(a-b).abs() < 0.01`) enforced in both Dart logic and UI layers.
+- **Membership Isolation**: Firestore Rules restrict data access based on the `memberIdentifiers` array.
+- **Soft Deletes**: Group and expense deletion with full state restoration.
+- **Identity Integrity**: Friends are distinguished by UID or Normalized Phone, preventing balance merging for users with identical names.
 
 ## 📂 Architecture Map
-- `lib/providers/app_state.dart`: Centralized Single Source of Truth; handles complex Firestore transactions and identity-linking logic.
-- `lib/utils/settlement_helper.dart`: The core financial engine and greedy debt-minimizer.
-- `lib/utils/upi_helper.dart`: Cross-platform UPI intent generator and sharing message builder.
-- `lib/screens/group_settlement_screen.dart`: Primary group hub with immersive sheets for analytics, balances, and settlements.
-- `lib/main.dart`: Global theme definition (`BharatDuesApp`) and platform-specific initialization.
+- `lib/providers/app_state.dart`: Single Source of Truth; handles Firestore transactions and identity-linking.
+- `lib/screens/home_screen.dart`: Global Financial Dashboard and Activity trails.
+- `lib/utils/settlement_helper.dart`: The mathematical core for debt simplification.
+- `lib/utils/upi_helper.dart`: Standardized UPI intent generator.
 
 ## 🚀 Status
-- **Android/Web**: Fully configured and verified with GSI.
-- **iOS/macOS**: `Info.plist` and `GoogleService-Info.plist` configured for OAuth and URL schemas.
-- **UI/UX**: Transitioned to high-contrast Light Theme; all visibility and contrast issues resolved for Activity, Profile, and Settlement screens.
-- **Identity**: 100% identity-aware; users are automatically prompted to complete profiles (UPI/Phone) upon sign-in.
-- **Finance**: 100% migrated to double precision with cent-based rounding logic and numeric input enforcement.
+- **Web/PWA**: Fully deployed at [bharat-dues.web.app](https://bharat-dues.web.app) with optimized assets and manifest.
+- **Android**: Verified with `com.example.bharat_dues` package and multi-app `<queries>` for deep-linking.
+- **iOS**: Configured with `com.example.bharatDues` bundle and signed with high-trust URL schemes.
+- **Production-Ready**: Identity-aware, precision-safe, and rebranded with a unified logo and design language.
