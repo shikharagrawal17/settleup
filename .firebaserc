@@ -7,6 +7,9 @@
       "hosting": {
         "main-site": [
           "bharat-dues"
+        ],
+        "legacy-site": [
+          "test-732f2"
         ]
       }
     }

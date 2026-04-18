@@ -21,7 +21,7 @@ class FirebaseSetupScreen extends StatelessWidget {
               Text(
                 'Firebase setup needed',
                 style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                     ),
               ),
               const SizedBox(height: 16),

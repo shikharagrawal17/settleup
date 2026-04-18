@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/settlement_group.dart';
@@ -92,6 +93,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 18),
                     _ReadOnlyField(
+                      icon: Icons.person_outline,
+                      label: 'Account Name',
+                      value: profile.displayName,
+                    ),
+                    const SizedBox(height: 12),
+                    _ReadOnlyField(
                       icon: Icons.email_outlined,
                       label: 'Google Email',
                       value: profile.email,
@@ -100,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     TextFormField(
                       controller: phoneController,
                       keyboardType: TextInputType.phone,
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+]'))],
                       decoration: const InputDecoration(
                         labelText: 'Mobile Number',
                         prefixIcon: Icon(Icons.phone_outlined),
@@ -138,7 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const Center(
                       child: Text(
                         'Version: 1.0.5+sync-hardened',
-                        style: TextStyle(color: Colors.white12, fontSize: 10),
+                        style: TextStyle(color: Colors.black12, fontSize: 10),
                       ),
                     ),
                   ],
@@ -287,7 +295,7 @@ class _DashboardSummary extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         groups.isEmpty ? 'Start by adding a friend' : 'Your financial summary',
-                        style: const TextStyle(color: Colors.white38, fontSize: 13),
+                        style: const TextStyle(color: Colors.black45, fontSize: 13),
                       ),
                     ],
                   ),
@@ -303,34 +311,30 @@ class _DashboardSummary extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF2D2A4A), Color(0xFF1F1D36)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                color: kPrimaryBlue.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: kPrimaryBlue.withValues(alpha: 0.1)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('TOTAL NET BALANCE', 
-                    style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+                    style: TextStyle(color: Colors.black38, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
                   const SizedBox(height: 8),
                   Text(
                     '₹${formatAmount(net.abs())}',
                     style: TextStyle(
                       fontSize: 38,
-                      fontWeight: FontWeight.w900,
-                      color: net == 0 ? Colors.white : (net > 0 ? const Color(0xFF4ADE80) : Colors.redAccent),
+                      fontWeight: FontWeight.w700,
+                      color: net == 0 ? kDarkBlue : (net > 0 ? const Color(0xFF00A381) : Colors.redAccent),
                     ),
                   ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Expanded(child: _MiniBalance(label: 'YOU OWE', amount: '₹${formatAmount(owe)}', color: Colors.redAccent)),
+                      Expanded(child: _MiniBalance(label: 'YOU OWE', amount: '₹${formatAmount(owe)}', color: Colors.red.shade700)),
                       const SizedBox(width: 12),
-                      Expanded(child: _MiniBalance(label: 'YOU ARE OWED', amount: '₹${formatAmount(owed)}', color: const Color(0xFF4ADE80))),
+                      Expanded(child: _MiniBalance(label: 'YOU ARE OWED', amount: '₹${formatAmount(owed)}', color: const Color(0xFF00897B))),
                     ],
                   ),
                 ],
@@ -453,7 +457,7 @@ class _GroupCard extends StatelessWidget {
 
     return InkWell(
       onTap: onOpen,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(15),
       child: AppSurface(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -462,17 +466,20 @@ class _GroupCard extends StatelessWidget {
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                gradient: LinearGradient(
-                  colors: group.isNonGroup 
-                    ? [const Color(0xFF63B3ED), const Color(0xFF3182CE)] 
-                    : [kAccent, kSecondary],
+                borderRadius: BorderRadius.circular(12),
+                color: group.isNonGroup 
+                    ? const Color(0xFF2D3748) 
+                    : kPrimaryBlue.withValues(alpha: 0.1),
+                border: Border.all(
+                  color: group.isNonGroup 
+                      ? Colors.white10 
+                      : kPrimaryBlue.withValues(alpha: 0.2),
                 ),
               ),
               child: Icon(
-                group.isNonGroup ? Icons.person_outline : Icons.group_outlined, 
-                color: Colors.black, 
-                size: 26
+                group.isNonGroup ? Icons.person_outline : Icons.groups_outlined, 
+                color: group.isNonGroup ? Colors.black54 : kPrimaryBlue, 
+                size: 24
               ),
             ),
             const SizedBox(width: 16),
@@ -480,11 +487,11 @@ class _GroupCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(displayName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+                  Text(displayName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 17, color: kDarkBlue)),
                   const SizedBox(height: 4),
                   Text(
                     '${group.members.length} members',
-                    style: const TextStyle(color: Colors.white38, fontSize: 13),
+                    style: const TextStyle(color: Colors.black38, fontSize: 13),
                   ),
                 ],
               ),
@@ -502,11 +509,11 @@ class _GroupCard extends StatelessWidget {
                           children: [
                             const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 40),
                             const SizedBox(height: 16),
-                            const Text('Delete Group', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                            const Text('Delete Group', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: kDarkBlue)),
                             const SizedBox(height: 12),
-                            Text('Are you sure you want to delete "$displayName"?', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+                            Text('Are you sure you want to delete "$displayName"?', textAlign: TextAlign.center, style: const TextStyle(color: Colors.black87)),
                             const SizedBox(height: 12),
-                            const Text('You can undo this immediately from the main screen.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white24, fontSize: 12)),
+                            const Text('You can undo this immediately from the main screen.', textAlign: TextAlign.center, style: TextStyle(color: Colors.black26, fontSize: 12)),
                             const SizedBox(height: 24),
                             Row(
                               children: [
@@ -527,9 +534,9 @@ class _GroupCard extends StatelessWidget {
                 );
                 if (confirmed == true) onDelete();
               },
-              icon: const Icon(Icons.delete_outline, color: Colors.white24, size: 20),
+              icon: Icon(Icons.delete_outline, color: Colors.red.shade600, size: 22),
             ),
-            const Icon(Icons.arrow_forward_ios, color: Colors.white12, size: 14),
+            const Icon(Icons.arrow_forward_ios, color: Colors.black12, size: 14),
           ],
         ),
       ),
@@ -548,9 +555,9 @@ class _MiniBalance extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.white24, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+        Text(label, style: const TextStyle(color: Colors.black38, fontSize: 9, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
         const SizedBox(height: 4),
-        Text(amount, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w900)),
+        Text(amount, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w700)),
       ],
     );
   }
@@ -567,20 +574,20 @@ class _ReadOnlyField extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: Colors.black.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: Colors.white38),
+          Icon(icon, size: 20, color: Colors.black38),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+              Text(label, style: const TextStyle(color: Colors.black38, fontSize: 11)),
               const SizedBox(height: 2),
-              Text(value, style: const TextStyle(color: Colors.white70)),
+              Text(value, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
             ],
           ),
         ],
@@ -598,15 +605,15 @@ class _EmptyGroups extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onCreate,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(15),
       child: AppSurface(
         child: const Column(
           children: [
-            Icon(Icons.groups_3_outlined, size: 32, color: kAccent),
-            SizedBox(height: 12),
-            Text('No groups yet', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            SizedBox(height: 4),
-            Text('Groups are perfect for trips and housemates.', style: TextStyle(color: Colors.white54), textAlign: TextAlign.center),
+            Icon(Icons.groups_3_outlined, size: 32, color: kPrimaryBlue),
+            const SizedBox(height: 12),
+            const Text('No groups yet', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kDarkBlue)),
+            const SizedBox(height: 4),
+            const Text('Groups are perfect for trips and housemates.', style: TextStyle(color: Colors.black54), textAlign: TextAlign.center),
           ],
         ),
       ),

@@ -187,7 +187,7 @@ class _GroupFormScreenState extends State<GroupFormScreen> {
                         alignment: Alignment.topLeft,
                         child: Text(
                           'No members yet.  Tap "Add" to enter details or "Import" from contacts.',
-                          style: TextStyle(color: Colors.white70, height: 1.5),
+                          style: TextStyle(color: Colors.black45, height: 1.5),
                         ),
                       ),
                     )
@@ -267,9 +267,9 @@ class _CompactMemberTile extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: 0.03),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
           ),
           child: Row(
             children: [
@@ -279,14 +279,14 @@ class _CompactMemberTile extends StatelessWidget {
                 height: 36,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  color: kAccent.withValues(alpha: 0.12),
+                  color: kPrimaryBlue.withValues(alpha: 0.12),
                 ),
                 child: Center(
                   child: Text(
                     initial,
                     style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: kAccent,
+                      fontWeight: FontWeight.w600,
+                      color: kPrimaryBlue,
                       fontSize: 14,
                     ),
                   ),
@@ -309,16 +309,16 @@ class _CompactMemberTile extends StatelessWidget {
                         ),
                         if (isRegistered) ...[
                           const SizedBox(width: 6),
-                          _badge('✓', kAccent),
+                          _badge('✓', kPrimaryBlue),
                         ],
                       ],
                     ),
                     if (subtitle.isNotEmpty)
-                      Text(
-                        subtitle,
-                        style: const TextStyle(color: Colors.white38, fontSize: 11),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(color: Colors.black45, fontSize: 11),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                   ],
                 ),
               ),
@@ -329,7 +329,7 @@ class _CompactMemberTile extends StatelessWidget {
                   child: Icon(
                     Icons.close,
                     size: 16,
-                    color: Colors.white38,
+                    color: Colors.black38,
                     ),
                   ),
                 ),

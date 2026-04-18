@@ -302,9 +302,9 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                               ? Text(
                                   balance > 0 ? '+₹${formatAmount(balance)}' : '−₹${formatAmount(balance.abs())}',
                                   style: TextStyle(
-                                    color: balance > 0 ? const Color(0xFF4ADE80) : Colors.redAccent,
+                                    color: balance > 0 ? const Color(0xFF00897B) : Colors.red.shade700,
                                     fontWeight: FontWeight.w700,
-                                    fontSize: 12,
+                                    fontSize: 13,
                                   ),
                                 )
                               : null,
@@ -380,9 +380,9 @@ class _CompactMemberTile extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: 0.03),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
           ),
           child: Row(
             children: [
@@ -391,11 +391,11 @@ class _CompactMemberTile extends StatelessWidget {
                 height: 36,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  color: kAccent.withValues(alpha: 0.12),
+                  color: kPrimaryBlue.withValues(alpha: 0.12),
                 ),
                 child: Center(
                   child: Text(initial,
-                      style: const TextStyle(fontWeight: FontWeight.w800, color: kAccent, fontSize: 14)),
+                      style: const TextStyle(fontWeight: FontWeight.w600, color: kPrimaryBlue, fontSize: 14)),
                 ),
               ),
               const SizedBox(width: 12),
@@ -414,20 +414,20 @@ class _CompactMemberTile extends StatelessWidget {
                         ),
                         if (isSelf) ...[
                           const SizedBox(width: 6),
-                          _badge('You', kSecondary),
+                          _badge('You', kDarkBlue),
                         ],
                         if (isRegistered) ...[
                           const SizedBox(width: 6),
-                          _badge('✓', kAccent),
+                          _badge('✓', kPrimaryBlue),
                         ],
                       ],
                     ),
                     if (subtitleParts.isNotEmpty)
-                      Text(
-                        subtitleParts.join(' · '),
-                        style: const TextStyle(color: Colors.white38, fontSize: 11),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                        Text(
+                          subtitleParts.join(' · '),
+                          style: const TextStyle(color: Colors.black45, fontSize: 11),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                   ],
                 ),
               ),
@@ -441,7 +441,7 @@ class _CompactMemberTile extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.only(left: 6),
                     child: Icon(Icons.close, size: 16,
-                        color: canRemove ? Colors.white38 : Colors.white12),
+                        color: canRemove ? Colors.black38 : Colors.black12),
                   ),
                 ),
             ],

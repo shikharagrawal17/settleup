@@ -53,123 +53,131 @@ class BharatDuesApp extends StatelessWidget {
   }
 
   ThemeData _buildTheme() {
-    const background = Color(0xFF0F0E17);
-    const card = Color(0xFF1A1927);
-    const accent = Color(0xFFFF8F00); // warm amber
-    const secondary = Color(0xFFA78BFA); // lavender violet
-    const onAccent = Color(0xFF1A0800); // dark text on amber buttons
+    const primaryBlue = Color(0xFF00B9F1);
+    const darkBlue = Color(0xFF002E6E);
+    const background = Color(0xFFF5F7FA);
+    const card = Colors.white;
 
-    final base = ThemeData.dark(useMaterial3: true);
+    final base = ThemeData.light(useMaterial3: true);
 
     return base.copyWith(
       scaffoldBackgroundColor: background,
       cardColor: card,
       splashFactory: InkSparkle.splashFactory,
       colorScheme: base.colorScheme.copyWith(
-        primary: accent,
-        secondary: secondary,
+        primary: primaryBlue,
+        secondary: darkBlue,
         surface: card,
       ),
       textTheme: base.textTheme.copyWith(
         displaySmall: const TextStyle(
-          fontSize: 40,
-          height: 1,
-          fontWeight: FontWeight.w900,
-          letterSpacing: -1.8,
+          fontSize: 36,
+          height: 1.1,
+          fontWeight: FontWeight.w700,
+          color: darkBlue,
+          letterSpacing: -1.2,
         ),
         headlineSmall: const TextStyle(
-          fontSize: 28,
-          height: 1.05,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.8,
+          fontSize: 24,
+          height: 1.2,
+          fontWeight: FontWeight.w700,
+          color: darkBlue,
+          letterSpacing: -0.5,
         ),
         titleLarge: const TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w800,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: darkBlue,
         ),
         bodyLarge: const TextStyle(
-          fontSize: 16,
-          height: 1.5,
+          fontSize: 15,
+          height: 1.6,
+          color: Colors.black87,
         ),
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: false,
+        iconTheme: IconThemeData(color: darkBlue),
+        titleTextStyle: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: darkBlue,
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.06),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-        labelStyle: const TextStyle(color: Colors.white60),
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        labelStyle: const TextStyle(color: Colors.black45, fontSize: 14),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.1)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(
-            color: Colors.white.withValues(alpha: 0.05),
-          ),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.1)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: accent, width: 1.2),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: primaryBlue, width: 1.5),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: accent,
-          foregroundColor: onAccent,
-          minimumSize: const Size.fromHeight(58),
+          backgroundColor: primaryBlue,
+          foregroundColor: Colors.white,
+          minimumSize: const Size.fromHeight(54),
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(12),
           ),
           textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(58),
-          backgroundColor: Colors.white.withValues(alpha: 0.03),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          minimumSize: const Size.fromHeight(54),
+          backgroundColor: Colors.transparent,
+          foregroundColor: darkBlue,
+          side: const BorderSide(color: primaryBlue),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(12),
           ),
           textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.06),
-          foregroundColor: Colors.white,
+          backgroundColor: Colors.black.withValues(alpha: 0.05),
+          foregroundColor: darkBlue,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
       ),
       chipTheme: base.chipTheme.copyWith(
-        selectedColor: accent,
-        secondarySelectedColor: accent,
-        backgroundColor: Colors.white.withValues(alpha: 0.05),
+        selectedColor: primaryBlue,
+        secondarySelectedColor: primaryBlue,
+        labelStyle: const TextStyle(fontSize: 12),
+        backgroundColor: Colors.black.withValues(alpha: 0.05),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
         ),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: Colors.transparent,
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: accent,
-        foregroundColor: onAccent,
+        backgroundColor: primaryBlue,
+        foregroundColor: Colors.white,
       ),
     );
   }

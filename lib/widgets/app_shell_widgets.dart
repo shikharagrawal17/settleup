@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-// ─── Palette constants (amber + violet) ─────────────────────────────────
-const kAccent = Color(0xFFFF8F00);
-const kSecondary = Color(0xFFA78BFA);
-const kBackground = Color(0xFF0F0E17);
-const kSurface = Color(0xFF1A1927);
-const kSurfaceBorder = Color(0x14FFFFFF); // white 8%
+// ─── Palette constants (Paytm inspired) ─────────────────────────────────
+const kPrimaryBlue = Color(0xFF00B9F1);
+const kDarkBlue = Color(0xFF002E6E);
+const kBackground = Color(0xFFF5F7FA);
+const kSurface = Colors.white;
+const kSurfaceBorder = Color(0x1A000000); // black 10%
 
 class AppBackdrop extends StatelessWidget {
   const AppBackdrop({
@@ -19,40 +19,17 @@ class AppBackdrop extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF0F0E17),
-            Color(0xFF140F1D),
-            Color(0xFF17110C),
-          ],
-        ),
+        color: kBackground,
       ),
       child: Stack(
         children: [
+          // Subtle blue mist for depth
           const Positioned(
-            top: -100,
-            left: -40,
+            top: -150,
+            right: -100,
             child: _GlowOrb(
-              size: 220,
-              color: Color(0x33FF8F00), // amber glow
-            ),
-          ),
-          const Positioned(
-            top: 160,
-            right: -70,
-            child: _GlowOrb(
-              size: 260,
-              color: Color(0x22A78BFA), // violet glow
-            ),
-          ),
-          const Positioned(
-            bottom: -120,
-            left: 50,
-            child: _GlowOrb(
-              size: 240,
-              color: Color(0x22F472B6), // rose glow
+              size: 400,
+              color: Color(0x0A00B9F1),
             ),
           ),
           child,
@@ -79,14 +56,14 @@ class AppSurface extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: kSurface.withValues(alpha: 0.85),
-        borderRadius: borderRadius ?? BorderRadius.circular(28),
-        border: Border.all(color: kSurfaceBorder),
-        boxShadow: const [
+        color: kSurface,
+        borderRadius: borderRadius ?? BorderRadius.circular(12),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x33000000),
-            blurRadius: 30,
-            offset: Offset(0, 16),
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -109,12 +86,12 @@ class MetricPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = highlight ? kAccent : Colors.white;
+    final color = highlight ? kPrimaryBlue : kDarkBlue;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(18),
+        color: Colors.black.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -122,7 +99,7 @@ class MetricPill extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Colors.white60,
+                  color: Colors.black45,
                   letterSpacing: 0.2,
                 ),
           ),
@@ -130,7 +107,7 @@ class MetricPill extends StatelessWidget {
           Text(
             value,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: color,
                 ),
             overflow: TextOverflow.ellipsis,
@@ -165,14 +142,14 @@ class SectionHeading extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w700,
                     ),
               ),
               const SizedBox(height: 6),
               Text(
                 subtitle,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.white60,
+                      color: Colors.black45,
                       height: 1.45,
                     ),
               ),

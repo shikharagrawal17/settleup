@@ -20,8 +20,9 @@ This document provides a distilled overview of the current system state, design 
   - `registries/{key}`: Registry for mapping `phone_+91...` or `email_...` to `uid` for instant member discovery.
 
 ## 🛠️ Key Features
-1. **Premium Fintech UI**: Immersive dark-mode design with warm amber accents, glassmorphic surfaces, and responsive sheet-based interactions.
-2. **Real-Time Sync**: Firestore-backed streams ensuring all members see updates (expenses, settlements, and member edits) instantly.
+1. **Premium Fintech UI**: Immersive **Paytm-inspired Light Theme** with vibrant blue accents (`#00B9F1`), minimalist white surfaces, and high-contrast typography optimized for accessibility.
+2. **Strict Financial Input**: Enforced numeric-only keyboards and decimal-safe input formatters across all currency and contact fields (+91 support).
+3. **Real-Time Sync**: Firestore-backed streams ensuring all members see updates (expenses, settlements, and member edits) instantly.
 3. **Simplified Settlement**: Greedy debt-minimization algorithm reduces transfers across complex group topologies.
 4. **Smart Expense Logic**: 
    - **Split Modes**: Supports Equal, Percentage, Shares (Multiplier), and Exact Amount modalities.
@@ -44,4 +45,5 @@ This document provides a distilled overview of the current system state, design 
 ## 🚀 Status
 - **Android/Web**: Fully configured and verified with GSI.
 - **iOS/macOS**: `Info.plist` and `GoogleService-Info.plist` configured for OAuth and URL schemas.
-- **Finance**: 100% migrated to double precision with cent-based rounding logic.
+- **UI/UX**: Transitioned to high-contrast Light Theme; all visibility and contrast issues resolved for Activity, Profile, and Settlement screens.
+- **Finance**: 100% migrated to double precision with cent-based rounding logic and numeric input enforcement.

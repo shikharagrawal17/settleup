@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
@@ -53,19 +54,21 @@ class _SignInScreenState extends State<SignInScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 60),
-                  Image.asset('assets/images/logo.png', height: 100),
+                  Center(child: Image.asset('assets/images/logo.png', height: 100)),
                   const SizedBox(height: 40),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: const Text(
-                      'UPI-first group settlement',
-                      style: TextStyle(
-                        color: kAccent,
-                        fontWeight: FontWeight.w700,
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: kPrimaryBlue.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'UPI-first group settlement',
+                        style: TextStyle(
+                          color: kPrimaryBlue,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
@@ -81,13 +84,13 @@ class _SignInScreenState extends State<SignInScreen> {
                     Text(
                       'A cleaner group expense app for India. Bring in contacts, save your UPI, and solve the math automatically.',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: Colors.white70,
+                            color: Colors.black54,
                           ),
                     ),
                   if (_view == AuthView.otp)
                     Text(
-                      'Enter the 6-digit code sent to \$_phoneNumber',
-                      style: const TextStyle(color: Colors.white70),
+                      'Enter the 6-digit code sent to $_phoneNumber',
+                      style: const TextStyle(color: Colors.black54),
                     ),
                   const SizedBox(height: 32),
                   
@@ -118,6 +121,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       child: TextField(
                         controller: _phoneController,
                         keyboardType: TextInputType.phone,
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+]'))],
                         autofocus: true,
                         decoration: const InputDecoration(
                           labelText: 'Mobile Number',
@@ -135,7 +139,7 @@ class _SignInScreenState extends State<SignInScreen> {
                     ),
                     TextButton(
                       onPressed: () => setState(() => _view = AuthView.initial),
-                      child: const Text('Back to options', style: TextStyle(color: Colors.white54)),
+                      child: const Text('Back to options', style: TextStyle(color: Colors.black38)),
                     ),
                   ] else if (_view == AuthView.otp) ...[
                     AppSurface(
@@ -162,7 +166,7 @@ class _SignInScreenState extends State<SignInScreen> {
                     ),
                     TextButton(
                       onPressed: () => setState(() => _view = AuthView.phone),
-                      child: const Text('Retry number', style: TextStyle(color: Colors.white54)),
+                      child: const Text('Retry number', style: TextStyle(color: Colors.black38)),
                     ),
                   ],
 

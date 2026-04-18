@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -95,7 +96,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
        useSafeArea: true,
        builder: (c) => Container(
          decoration: const BoxDecoration(
-           color: Color(0xFF141414),
+           color: Colors.white,
            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
          ),
          child: Column(
@@ -105,7 +106,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
              Container(
                height: 5,
                width: 40,
-               decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10)),
+               decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(10)),
              ),
              const SizedBox(height: 12),
              Flexible(
@@ -138,7 +139,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
        useSafeArea: true,
        builder: (c) => Container(
          decoration: const BoxDecoration(
-           color: Color(0xFF141414),
+           color: Colors.white,
            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
          ),
          child: Column(
@@ -148,7 +149,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
              Container(
                height: 5,
                width: 40,
-               decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10)),
+               decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(10)),
              ),
              const SizedBox(height: 16),
              Flexible(
@@ -244,7 +245,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
           child: SingleChildScrollView(
             child: Container(
           decoration: const BoxDecoration(
-            color: Color(0xFF1A1A1A),
+            color: Colors.white,
             borderRadius: BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
           ),
           padding: const EdgeInsets.fromLTRB(24, 32, 24, 40),
@@ -256,20 +257,20 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                  color: kAccent.withValues(alpha: 0.1),
+                  color: kPrimaryBlue.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
-                  border: Border.all(color: kAccent.withValues(alpha: 0.2), width: 2),
+                  border: Border.all(color: kPrimaryBlue.withValues(alpha: 0.2), width: 2),
                 ),
                 child: const Center(
-                  child: Text('₹', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: kAccent)),
+                  child: Text('₹', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: kPrimaryBlue)),
                 ),
               ),
               const SizedBox(height: 24),
-              const Text('Payment Confirmation', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: -0.5)),
+              const Text('Payment Confirmation', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 22, letterSpacing: -0.5)),
               const SizedBox(height: 8),
               Text(
                 'Verify your bank transfer details',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 13),
+                style: TextStyle(color: Colors.black45, fontSize: 13),
               ),
               const SizedBox(height: 32),
               // Transaction Details Card
@@ -280,22 +281,22 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Amount to Pay', style: TextStyle(color: Colors.white38, fontSize: 13)),
-                        Text('₹${formatAmount(transaction.amount)}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22, color: kAccent)),
+                        const Text('Amount to Pay', style: TextStyle(color: Colors.black38, fontSize: 13)),
+                        Text('₹${formatAmount(transaction.amount)}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 22, color: kPrimaryBlue)),
                       ],
                     ),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Divider(color: Colors.white10),
+                      child: Divider(color: Colors.black12),
                     ),
                     Row(
                       children: [
-                        const Text('Paying to: ', style: TextStyle(color: Colors.white38, fontSize: 13)),
+                        const Text('Paying to: ', style: TextStyle(color: Colors.black38, fontSize: 13)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             transaction.toName,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white),
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: kDarkBlue),
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.right,
                           ),
@@ -309,7 +310,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
               const Text(
                 'By clicking "Confirm & Record", you acknowledge that the funds have been transferred in your UPI app.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white24, fontSize: 11, fontStyle: FontStyle.italic),
+                style: TextStyle(color: Colors.black12, fontSize: 11, fontStyle: FontStyle.italic),
               ),
               const SizedBox(height: 32),
               Row(
@@ -318,10 +319,10 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                     child: TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
                       style: TextButton.styleFrom(
-                        foregroundColor: Colors.white38,
+                        foregroundColor: Colors.black38,
                         minimumSize: const Size.fromHeight(56),
                       ),
-                      child: const Text('Did not pay', style: TextStyle(fontWeight: FontWeight.w800)),
+                      child: const Text('Did not pay', style: TextStyle(fontWeight: FontWeight.w600)),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -329,12 +330,12 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                     child: FilledButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: FilledButton.styleFrom(
-                        backgroundColor: kAccent,
+                        backgroundColor: kPrimaryBlue,
                         foregroundColor: Colors.black,
                         minimumSize: const Size.fromHeight(56),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      child: const Text('Confirm & Record', style: TextStyle(fontWeight: FontWeight.w900)),
+                      child: const Text('Confirm & Record', style: TextStyle(fontWeight: FontWeight.w700)),
                     ),
                   ),
                 ],
@@ -537,7 +538,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                           height: 4,
                           margin: const EdgeInsets.only(bottom: 20),
                           decoration: BoxDecoration(
-                            color: Colors.white24,
+                            color: Colors.black12,
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
@@ -545,7 +546,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                             const SizedBox(height: 20),
                       TextFormField(
                         controller: descCtrl,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                         decoration: const InputDecoration(
                           labelText: 'Description',
                           hintText: 'Dinner, Groceries, Rent...',
@@ -569,14 +570,14 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                               padding: const EdgeInsets.only(right: 8),
                               child: FilterChip(
                                 showCheckmark: false,
-                                avatar: Icon(cat.icon, size: 14, color: isSelected ? Colors.black : Colors.white70),
-                                label: Text(cat.label, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.w800 : FontWeight.normal, color: isSelected ? Colors.black : Colors.white70)),
+                                avatar: Icon(cat.icon, size: 14, color: isSelected ? Colors.black : Colors.black87),
+                                label: Text(cat.label, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal, color: isSelected ? Colors.black : Colors.black87)),
                                 selected: isSelected,
                                 onSelected: (_) => setSheetState(() {
                                   selectedCategory = cat;
                                   isCategoryManual = true;
                                 }),
-                                selectedColor: kAccent,
+                                selectedColor: kPrimaryBlue,
                               ),
                             );
                           }).toList(),
@@ -588,17 +589,18 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.03),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                          color: Colors.black.withValues(alpha: 0.03),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
                         ),
                         child: Column(
                           children: [
                             TextFormField(
                               controller: amountCtrl,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: kAccent),
+                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: kPrimaryBlue),
                               decoration: const InputDecoration(
                                 labelText: 'Total Amount',
                                 prefixText: '₹ ',
@@ -617,10 +619,10 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                 return (val == null || val <= 0) ? '!' : null;
                               },
                             ),
-                            const Divider(height: 32, color: Colors.white10),
+                            const Divider(height: 32, color: Colors.black12),
                             DropdownButtonFormField<String>(
                               initialValue: payerId,
-                              dropdownColor: Colors.black87,
+                              dropdownColor: Colors.white,
                               decoration: const InputDecoration(
                                 labelText: 'Paid By',
                                 floatingLabelBehavior: FloatingLabelBehavior.always,
@@ -644,8 +646,8 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('SPLIT METHOD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white38, letterSpacing: 1.5)),
-                          Text(splitMode.label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: kAccent)),
+                          const Text('SPLIT METHOD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black38, letterSpacing: 1.5)),
+                          Text(splitMode.label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: kPrimaryBlue)),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -658,7 +660,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                               padding: const EdgeInsets.only(right: 8),
                               child: FilterChip(
                                 showCheckmark: false,
-                                label: Text(m.label, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.w800 : FontWeight.normal, color: isSelected ? Colors.black : Colors.white70)),
+                                label: Text(m.label, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal, color: isSelected ? Colors.black : Colors.black87)),
                                 selected: isSelected,
                                 onSelected: (val) {
                                   if (val) {
@@ -668,7 +670,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                     });
                                   }
                                 },
-                                selectedColor: kAccent,
+                                selectedColor: kPrimaryBlue,
                               ),
                             );
                           }).toList(),
@@ -684,7 +686,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                           decoration: BoxDecoration(
                             color: isIncluded ? Colors.white.withValues(alpha: 0.04) : Colors.transparent,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: isIncluded ? kAccent.withValues(alpha: 0.1) : Colors.transparent),
+                            border: Border.all(color: isIncluded ? kPrimaryBlue.withValues(alpha: 0.1) : Colors.transparent),
                           ),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(16),
@@ -703,7 +705,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                 children: [
                                   Icon(
                                     isIncluded ? Icons.check_circle_rounded : Icons.circle_outlined,
-                                    color: isIncluded ? kAccent : Colors.white24,
+                                    color: isIncluded ? kPrimaryBlue : Colors.black12,
                                     size: 22,
                                   ),
                                   const SizedBox(width: 12),
@@ -715,8 +717,8 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                           m.name,
                                           style: TextStyle(
                                             fontSize: 15, 
-                                            fontWeight: isIncluded ? FontWeight.w800 : FontWeight.w500,
-                                            color: isIncluded ? Colors.white : Colors.white38,
+                                            fontWeight: isIncluded ? FontWeight.w600 : FontWeight.w500,
+                                            color: isIncluded ? kDarkBlue : Colors.black38,
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -726,7 +728,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                             splitMode == SplitMode.percentage 
                                               ? '${pctControllers[m.id]!.text}% Share'
                                               : '${multControllers[m.id]!.text}x Weight',
-                                            style: const TextStyle(fontSize: 10, color: kAccent, fontWeight: FontWeight.w700),
+                                            style: const TextStyle(fontSize: 10, color: kPrimaryBlue, fontWeight: FontWeight.w700),
                                           ),
                                       ],
                                     ),
@@ -737,13 +739,14 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                       child: TextFormField(
                                         controller: splitMode == SplitMode.percentage ? pctControllers[m.id] : multControllers[m.id],
                                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
                                         textAlign: TextAlign.center,
-                                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                                         decoration: InputDecoration(
                                           hintText: splitMode == SplitMode.percentage ? '%' : 'x',
                                           isDense: true,
                                           contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                                          border: UnderlineInputBorder(borderSide: BorderSide(color: kAccent.withValues(alpha: 0.3))),
+                                          border: UnderlineInputBorder(borderSide: BorderSide(color: kPrimaryBlue.withValues(alpha: 0.3))),
                                         ),
                                         onChanged: (_) => setSheetState(() => recomputeShares()),
                                       ),
@@ -755,16 +758,17 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                     child: TextFormField(
                                       controller: shareControllers[m.id],
                                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
                                       enabled: isIncluded && splitMode == SplitMode.exact,
                                       textAlign: TextAlign.right,
                                       style: TextStyle(
                                         fontSize: 16, 
-                                        fontWeight: FontWeight.w900, 
-                                        color: isIncluded ? Colors.white : Colors.white10
+                                        fontWeight: FontWeight.w700, 
+                                        color: isIncluded ? kDarkBlue : Colors.black12
                                       ),
                                       decoration: InputDecoration(
                                         prefixText: '₹ ',
-                                        prefixStyle: const TextStyle(fontSize: 11, color: Colors.white38),
+                                        prefixStyle: const TextStyle(fontSize: 11, color: Colors.black38),
                                         isDense: true,
                                         contentPadding: EdgeInsets.zero,
                                         border: InputBorder.none,
@@ -784,8 +788,8 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: isBalanced ? kAccent.withValues(alpha: 0.1) : Colors.redAccent.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(24),
+                          color: isBalanced ? kPrimaryBlue.withValues(alpha: 0.1) : Colors.redAccent.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(16),
                         ),
                         child: Row(
                           children: [
@@ -796,8 +800,8 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                   Text(
                                     isBalanced ? 'BALANCED' : 'UNBALANCED',
                                     style: TextStyle(
-                                      color: isBalanced ? kAccent : Colors.redAccent,
-                                      fontWeight: FontWeight.w900,
+                                      color: isBalanced ? kPrimaryBlue : Colors.redAccent,
+                                      fontWeight: FontWeight.w700,
                                       fontSize: 10,
                                       letterSpacing: 1.2,
                                     ),
@@ -805,8 +809,8 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                   Text(
                                     isBalanced ? 'All shares match total' : 'Remaining: ₹${formatAmount(diff)}',
                                     style: TextStyle(
-                                      color: isBalanced ? Colors.white : Colors.redAccent,
-                                      fontWeight: FontWeight.w800,
+                                      color: isBalanced ? kDarkBlue : Colors.redAccent,
+                                      fontWeight: FontWeight.w600,
                                       fontSize: 14,
                                     ),
                                   ),
@@ -828,7 +832,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                     SnackBar(
                                       behavior: SnackBarBehavior.floating,
                                       backgroundColor: Colors.redAccent,
-                                      content: Text('Total (₹${formatAmount(currentTotal)}) ≠ Shares (₹${formatAmount(currentSum)})', style: const TextStyle(fontWeight: FontWeight.w800)),
+                                      content: Text('Total (₹${formatAmount(currentTotal)}) ≠ Shares (₹${formatAmount(currentSum)})', style: const TextStyle(fontWeight: FontWeight.w600)),
                                     ),
                                   );
                                   return;
@@ -1090,14 +1094,14 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                                 : myGroupBalance > 0
                                                     ? 'You are owed'
                                                     : 'You owe',
-                                            style: const TextStyle(color: Colors.white54, fontSize: 13),
+                                            style: const TextStyle(color: Colors.black45, fontSize: 13),
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
                                             '₹${formatAmount(myGroupBalance.abs())}',
                                             style: TextStyle(
                                               fontSize: 32,
-                                              fontWeight: FontWeight.w900,
+                                              fontWeight: FontWeight.w700,
                                               color: myGroupBalance == 0
                                                   ? Colors.white
                                                   : myGroupBalance > 0
@@ -1129,7 +1133,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                           icon: const Icon(Icons.handshake_outlined),
                                           label: const Text('Bharat Dues Summary'),
                                           style: FilledButton.styleFrom(
-                                            backgroundColor: kAccent,
+                                            backgroundColor: kPrimaryBlue,
                                             foregroundColor: Colors.black,
                                             minimumSize: const Size.fromHeight(48),
                                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1161,12 +1165,12 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                         dividerColor: Colors.transparent,
                                         indicator: BoxDecoration(
                                           borderRadius: BorderRadius.circular(10),
-                                          color: kAccent,
+                                          color: kPrimaryBlue,
                                         ),
                                         indicatorSize: TabBarIndicatorSize.tab,
                                         labelColor: Colors.black,
-                                        unselectedLabelColor: Colors.white38,
-                                        labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1),
+                                        unselectedLabelColor: Colors.black38,
+                                        labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 10, letterSpacing: 1),
                                         tabs: const [
                                           Tab(text: 'EXPENSES'),
                                           Tab(text: 'ACTIVITY'),
@@ -1240,7 +1244,7 @@ class _ErrorScaffold extends StatelessWidget {
               const SizedBox(height: 16),
               const Text('Synchronization Issue', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              Text(error?.toString() ?? 'Something went wrong while syncing with the database.', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54)),
+              Text(error?.toString() ?? 'Something went wrong while syncing with the database.', textAlign: TextAlign.center, style: const TextStyle(color: Colors.black45)),
               const SizedBox(height: 24),
               ElevatedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Back')),
             ],
@@ -1326,9 +1330,9 @@ class _ExpensesTab extends StatelessWidget {
                   children: [
                     const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 40),
                     const SizedBox(height: 16),
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18)),
                     const SizedBox(height: 12),
-                    Text(body, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+                    Text(body, textAlign: TextAlign.center, style: const TextStyle(color: Colors.black87)),
                     const SizedBox(height: 24),
                     Row(
                       children: [
@@ -1367,7 +1371,7 @@ class _ExpensesTab extends StatelessWidget {
               child: Text(
                 'No records yet. Add an expense or settle up to see things here.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white38, height: 1.5),
+                style: TextStyle(color: Colors.black38, height: 1.5),
               ),
             ),
           )
@@ -1431,7 +1435,7 @@ class _ActivityLogTab extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-              child: CircularProgressIndicator(color: kAccent));
+              child: CircularProgressIndicator(color: kPrimaryBlue));
         }
 
         final logs = snapshot.data ?? [];
@@ -1443,12 +1447,12 @@ class _ActivityLogTab extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.history_outlined, color: Colors.white10, size: 64),
+                  Icon(Icons.history_outlined, color: Colors.black12, size: 64),
                   SizedBox(height: 16),
                   Text(
                     'No activities yet reported for this group.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white24),
+                    style: TextStyle(color: Colors.black12),
                   ),
                 ],
               ),
@@ -1548,31 +1552,31 @@ class _ActivityLogItem extends StatelessWidget {
                   RichText(
                     text: TextSpan(
                       style: const TextStyle(
-                          color: Colors.white70, fontSize: 13, height: 1.4),
+                          color: Colors.black87, fontSize: 13, height: 1.4),
                       children: [
                         TextSpan(
                             text: actor,
                             style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white)),
+                                fontWeight: FontWeight.w700,
+                                color: kDarkBlue)),
                         TextSpan(text: ' ${_getActionText(log.action)} '),
                         TextSpan(
                             text: log.targetName,
                             style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white)),
+                                fontWeight: FontWeight.w600,
+                                color: kDarkBlue)),
                         if (log.amount != null) ...[
                           const TextSpan(text: ' of '),
                           TextSpan(
                               text: '₹${formatAmount(log.amount ?? 0)}',
                               style: const TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  color: Color(0xFF4ADE80))),
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF00897B))),
                         ],
                         if (details.isNotEmpty)
                           TextSpan(
                             text: details,
-                            style: const TextStyle(color: Colors.white38, fontSize: 11, fontStyle: FontStyle.italic),
+                            style: const TextStyle(color: Colors.black38, fontSize: 11, fontStyle: FontStyle.italic),
                           ),
                       ],
                     ),
@@ -1580,7 +1584,7 @@ class _ActivityLogItem extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     _formatTime(log.timestamp),
-                    style: const TextStyle(color: Colors.white24, fontSize: 10),
+                    style: const TextStyle(color: Colors.black12, fontSize: 10),
                   ),
                 ],
               ),
@@ -1625,19 +1629,19 @@ class _ActivityLogItem extends StatelessWidget {
       case ActivityAction.expenseDeleted:
         return Colors.redAccent;
       case ActivityAction.settlementRecorded:
-        return const Color(0xFFB794F4);
+        return Colors.amber;
       case ActivityAction.settlementConfirmed:
-        return const Color(0xFF4ADE80);
+        return const Color(0xFF00695C);
       case ActivityAction.settlementDisputed:
         return Colors.orangeAccent;
       case ActivityAction.groupCreated:
-        return kAccent;
+        return kPrimaryBlue;
       case ActivityAction.groupEdited:
-        return Colors.white54;
+        return Colors.black45;
       case ActivityAction.memberAdded:
         return const Color(0xFFF687B3);
       default:
-        return Colors.white24;
+        return Colors.black12;
     }
   }
 
@@ -1687,7 +1691,7 @@ class _MonthHeader extends StatelessWidget {
         style: const TextStyle(
           color: Colors.white30,
           fontSize: 11,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
         ),
       ),
@@ -1750,7 +1754,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                       width: 44,
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
+                        color: Colors.black.withValues(alpha: 0.03),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Column(
@@ -1759,15 +1763,15 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                             _getMonth(widget.expense.createdAt),
                             style: const TextStyle(
                                 fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white38),
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black38),
                           ),
                           Text(
                             widget.expense.createdAt.day.toString(),
                             style: const TextStyle(
                                 fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white),
+                                fontWeight: FontWeight.w700,
+                                color: kDarkBlue),
                           ),
                         ],
                       ),
@@ -1781,7 +1785,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                           Text(
                             widget.expense.description,
                             style: const TextStyle(
-                                fontWeight: FontWeight.w800, fontSize: 15),
+                                fontWeight: FontWeight.w600, fontSize: 15),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -1791,7 +1795,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                                  ? 'You paid ₹${formatAmount(widget.expense.amount)}'
                                  : '$payerName paid ₹${formatAmount(widget.expense.amount)}',
                             style: const TextStyle(
-                                color: Colors.white54, fontSize: 12),
+                                color: Colors.black45, fontSize: 12),
                           ),
                         ],
                       ),
@@ -1801,10 +1805,10 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: kAccent.withValues(alpha: 0.1),
+                        color: kPrimaryBlue.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(cat.icon, color: kAccent, size: 16),
+                      child: Icon(cat.icon, color: kPrimaryBlue, size: 16),
                     ),
                   ],
                 ),
@@ -1834,13 +1838,13 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                                 height: 28,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: Colors.white10,
-                                  border: Border.all(color: const Color(0xFF141414), width: 2),
+                                  color: Colors.black12,
+                                  border: Border.all(color: Colors.white, width: 2),
                                 ),
                                 child: Center(
                                   child: Text(
                                     '+${involvedMembers.length - 5}',
-                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white70),
+                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black87),
                                   ),
                                 ),
                               ),
@@ -1851,7 +1855,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                     const SizedBox(width: 12),
                     Text(
                       '${involvedMembers.length} involved',
-                      style: const TextStyle(color: Colors.white24, fontSize: 12, fontWeight: FontWeight.w500),
+                      style: const TextStyle(color: Colors.black12, fontSize: 12, fontWeight: FontWeight.w500),
                     ),
                     const Spacer(),
                     if (_expanded) ...[
@@ -1863,10 +1867,10 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                           child: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: kAccent.withValues(alpha: 0.1),
+                              color: kPrimaryBlue.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.edit_rounded, size: 16, color: kAccent),
+                            child: const Icon(Icons.edit_rounded, size: 16, color: kPrimaryBlue),
                           ),
                         ),
                       ),
@@ -1908,7 +1912,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                       const Text(
                         'Share Breakdown',
                         style: TextStyle(
-                            color: Colors.white54,
+                            color: Colors.black45,
                             fontSize: 11,
                             fontWeight: FontWeight.w600),
                       ),
@@ -1946,14 +1950,14 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                                   margin:
                                       const EdgeInsets.only(right: 8),
                                   decoration: BoxDecoration(
-                                    color: kAccent.withValues(alpha: 0.12),
+                                    color: kPrimaryBlue.withValues(alpha: 0.12),
                                     borderRadius:
                                         BorderRadius.circular(6),
                                   ),
                                   child: const Text(
                                     'Paid',
                                     style: TextStyle(
-                                        color: kAccent,
+                                        color: kPrimaryBlue,
                                         fontSize: 10,
                                         fontWeight: FontWeight.w700),
                                   ),
@@ -2010,17 +2014,17 @@ class _SettlementActivityCard extends StatelessWidget {
 
     switch (settlement.status) {
       case SettlementStatus.confirmed:
-        statusColor = const Color(0xFF4ADE80);
-        statusIcon = Icons.check_circle_outline;
+        statusColor = const Color(0xFF00897B); // Darker Green
+        statusIcon = Icons.check_circle;
         statusText = 'Settled';
         break;
       case SettlementStatus.disputed:
-        statusColor = Colors.redAccent;
-        statusIcon = Icons.report_problem_outlined;
+        statusColor = Colors.red.shade700;
+        statusIcon = Icons.report_problem;
         statusText = 'Disputed';
         break;
       case SettlementStatus.pending:
-        statusColor = Colors.amberAccent;
+        statusColor = Colors.amber.shade700;
         statusIcon = Icons.hourglass_empty;
         statusText = 'Pending';
         break;
@@ -2055,7 +2059,7 @@ class _SettlementActivityCard extends StatelessWidget {
                     children: [
                       Text(
                         '${memberMap[settlement.fromMemberId]?.name ?? settlement.fromName} Paid ${memberMap[settlement.toMemberId]?.name ?? settlement.toName}',
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: -0.2),
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, letterSpacing: -0.2),
                       ),
                       const SizedBox(height: 4),
                       Row(
@@ -2065,7 +2069,7 @@ class _SettlementActivityCard extends StatelessWidget {
                            Expanded(
                              child: Text(
                                '${settlement.note ?? "Payment"} · ${_formatDate(settlement.settledAt)}',
-                               style: const TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.w500),
+                               style: const TextStyle(color: Colors.black38, fontSize: 11, fontWeight: FontWeight.w500),
                                maxLines: 1,
                                overflow: TextOverflow.ellipsis,
                              ),
@@ -2084,14 +2088,14 @@ class _SettlementActivityCard extends StatelessWidget {
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w700,
                         letterSpacing: -0.5,
                       ),
                     ),
                     const SizedBox(height: 4),
                     GestureDetector(
                       onTap: onDelete,
-                      child: const Text('Delete', style: TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.w700)),
+                      child: const Text('Delete', style: TextStyle(color: Colors.black12, fontSize: 10, fontWeight: FontWeight.w700)),
                     ),
                   ],
                 ),
@@ -2101,7 +2105,7 @@ class _SettlementActivityCard extends StatelessWidget {
             // Action buttons for the Receiver if Pending/Disputed
             if (isReceiver && settlement.status != SettlementStatus.confirmed) ...[
               const SizedBox(height: 12),
-              const Divider(height: 1, color: Colors.white10),
+              const Divider(height: 1, color: Colors.black12),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -2131,7 +2135,7 @@ class _SettlementActivityCard extends StatelessWidget {
                const SizedBox(height: 8),
                Text(
                  'Awaiting confirmation from ${settlement.toName}',
-                 style: const TextStyle(color: Colors.white38, fontSize: 10, fontStyle: FontStyle.italic),
+                 style: const TextStyle(color: Colors.black38, fontSize: 10, fontStyle: FontStyle.italic),
                ),
             ],
           ],
@@ -2150,7 +2154,7 @@ class _SettlementActivityCard extends StatelessWidget {
       ),
       child: Text(
         text.toUpperCase(),
-        style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.w900),
+        style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -2171,14 +2175,14 @@ class _MiniAvatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: kAccent.withValues(alpha: 0.15),
+        color: kPrimaryBlue.withValues(alpha: 0.15),
         border: Border.all(color: const Color(0xFF1A1927), width: 2),
       ),
       child: Center(
         child: Text(
           name.isNotEmpty ? name[0].toUpperCase() : '?',
           style: TextStyle(
-              fontSize: size * 0.4, fontWeight: FontWeight.w800, color: kAccent),
+              fontSize: size * 0.4, fontWeight: FontWeight.w600, color: kPrimaryBlue),
         ),
       ),
     );
@@ -2250,7 +2254,7 @@ class _BalancesTab extends StatelessWidget {
                         color: myBalance > 0
                             ? const Color(0xFF4ADE80)
                             : Colors.redAccent,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w700,
                       ),
                 ),
                 const SizedBox(height: 8),
@@ -2258,7 +2262,7 @@ class _BalancesTab extends StatelessWidget {
                   myBalance > 0
                       ? 'Overall, you get back this amount from the group.'
                       : 'Overall, you need to pay this amount to settle up.',
-                  style: const TextStyle(color: Colors.white54, height: 1.4),
+                  style: const TextStyle(color: Colors.black45, height: 1.4),
                 ),
               ],
             ],
@@ -2296,9 +2300,9 @@ class _BalancesTab extends StatelessWidget {
                       child: Text(
                         appState.resolveMemberName(member).isNotEmpty ? appState.resolveMemberName(member)[0].toUpperCase() : '?',
                         style: TextStyle(
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                           color: balance == 0
-                              ? Colors.white54
+                              ? Colors.black45
                               : balance > 0
                                   ? const Color(0xFF4ADE80)
                                   : Colors.redAccent,
@@ -2324,7 +2328,7 @@ class _BalancesTab extends StatelessWidget {
                                   : 'Owes',
                           style: TextStyle(
                             color: balance == 0
-                                ? Colors.white38
+                                ? Colors.black38
                                 : balance > 0
                                     ? const Color(0xFF4ADE80)
                                     : Colors.redAccent,
@@ -2337,9 +2341,9 @@ class _BalancesTab extends StatelessWidget {
                   Text(
                     balance == 0 ? '₹0' : '₹${formatAmount(balance.abs())}',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                           color: balance == 0
-                              ? Colors.white38
+                              ? Colors.black38
                               : balance > 0
                                   ? const Color(0xFF4ADE80)
                                   : Colors.redAccent,
@@ -2366,7 +2370,7 @@ class _BalancesTab extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                 child: Row(
                   children: [
-                    const Icon(Icons.arrow_forward_rounded, color: kAccent, size: 20),
+                    const Icon(Icons.arrow_forward_rounded, color: kPrimaryBlue, size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -2377,8 +2381,8 @@ class _BalancesTab extends StatelessWidget {
                     Text(
                       '₹${formatAmount(t.amount)}',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: kAccent,
-                            fontWeight: FontWeight.w800,
+                            color: kPrimaryBlue,
+                            fontWeight: FontWeight.w600,
                           ),
                     ),
                   ],
@@ -2428,17 +2432,17 @@ class _SettleTab extends StatelessWidget {
           const AppSurface(
             child: Column(
               children: [
-                Icon(Icons.celebration_outlined, color: kAccent, size: 36),
+                Icon(Icons.celebration_outlined, color: kPrimaryBlue, size: 36),
                 SizedBox(height: 12),
                 Text(
                   'All settled! 🎉',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
+                  style: TextStyle(color: kDarkBlue, fontWeight: FontWeight.w700, fontSize: 16),
                 ),
                 SizedBox(height: 6),
                 Text(
                   'No pending transfers. Everyone is even.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white54, height: 1.4),
+                  style: TextStyle(color: Colors.black45, height: 1.4),
                 ),
               ],
             ),
@@ -2513,7 +2517,7 @@ class _TransactionCard extends StatelessWidget {
                       left: 24,
                       child: Container(
                         padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(color: Color(0xFF141414), shape: BoxShape.circle),
+                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                         child: _MiniAvatar(name: transaction.toName, size: 40),
                       ),
                     ),
@@ -2527,15 +2531,15 @@ class _TransactionCard extends StatelessWidget {
                   children: [
                     Text(
                       '${transaction.fromName} owes ${transaction.toName}',
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white70),
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black87),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '₹${formatAmount(transaction.amount)}',
                       style: const TextStyle(
                         fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                        color: kAccent,
+                        fontWeight: FontWeight.w700,
+                        color: kPrimaryBlue,
                         letterSpacing: -1,
                       ),
                     ),
@@ -2585,14 +2589,14 @@ class _TransactionCard extends StatelessWidget {
             ],
           ] else if (isCurrentUserDebtor) ...[
             if (canPay) ...[
-               const Text('GENERATE QR', style: TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+               const Text('GENERATE QR', style: TextStyle(color: Colors.black12, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
                const SizedBox(height: 12),
                Container(
                  width: double.infinity,
                  padding: const EdgeInsets.all(20),
                  decoration: BoxDecoration(
                    color: Colors.white,
-                   borderRadius: BorderRadius.circular(24),
+                   borderRadius: BorderRadius.circular(16),
                  ),
                  child: Center(
                    child: QrImageView(data: qrData!, size: 160, backgroundColor: Colors.white),
@@ -2606,7 +2610,7 @@ class _TransactionCard extends StatelessWidget {
                    icon: const Icon(Icons.bolt_rounded, size: 18),
                    label: const Text('Pay with UPI App'),
                    style: FilledButton.styleFrom(
-                     backgroundColor: kAccent,
+                     backgroundColor: kPrimaryBlue,
                      foregroundColor: Colors.black,
                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                    ),
@@ -2645,7 +2649,7 @@ class _TransactionCard extends StatelessWidget {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
               ),
-              child: const Text('Record Manual Payment', style: TextStyle(color: Colors.white54, fontSize: 12)),
+              child: const Text('Record Manual Payment', style: TextStyle(color: Colors.black45, fontSize: 12)),
             ),
           ),
         ],
@@ -2686,13 +2690,13 @@ class _AnalyticsSheet extends StatelessWidget {
       maxChildSize: 0.9,
       builder: (context, controller) => Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF141414),
+          color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
         ),
         child: Column(
           children: [
             const SizedBox(height: 12),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(2))),
             const Padding(
               padding: EdgeInsets.all(24),
               child: SectionHeading(
@@ -2701,7 +2705,7 @@ class _AnalyticsSheet extends StatelessWidget {
               ),
             ),
             if (expenses.isEmpty)
-              const Expanded(child: Center(child: Text('No expenses recorded yet', style: TextStyle(color: Colors.white38))))
+              const Expanded(child: Center(child: Text('No expenses recorded yet', style: TextStyle(color: Colors.black38))))
             else
               Expanded(
                 child: ListView.builder(
@@ -2720,10 +2724,10 @@ class _AnalyticsSheet extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              Icon(cat.icon, size: 18, color: kAccent),
+                              Icon(cat.icon, size: 18, color: kPrimaryBlue),
                               const SizedBox(width: 12),
                               Expanded(child: Text(cat.label, style: const TextStyle(fontWeight: FontWeight.w600))),
-                              Text('₹${formatAmount(amount)}', style: const TextStyle(fontWeight: FontWeight.w800, color: kAccent)),
+                              Text('₹${formatAmount(amount)}', style: const TextStyle(fontWeight: FontWeight.w600, color: kPrimaryBlue)),
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -2738,7 +2742,7 @@ class _AnalyticsSheet extends StatelessWidget {
                                 widthFactor: pct,
                                 child: Container(
                                   height: 6,
-                                  decoration: BoxDecoration(gradient: LinearGradient(colors: [kAccent, kSecondary]), borderRadius: BorderRadius.circular(3)),
+                                  decoration: BoxDecoration(gradient: LinearGradient(colors: [kPrimaryBlue, kDarkBlue]), borderRadius: BorderRadius.circular(3)),
                                 ),
                               ),
                             ],
