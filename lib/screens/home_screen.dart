@@ -142,10 +142,41 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: const Text('Save Profile'),
                       ),
                     ),
+                    const SizedBox(height: 24),
+                    const Divider(color: Colors.black12),
                     const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: kPrimaryBlue.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.code_rounded, color: kPrimaryBlue, size: 20),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Developed by',
+                                style: TextStyle(color: Colors.black38, fontSize: 11, fontWeight: FontWeight.w600),
+                              ),
+                              Text(
+                                'Shikhar Agarwal',
+                                style: TextStyle(color: kDarkBlue, fontWeight: FontWeight.w700, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
                     const Center(
                       child: Text(
-                        'Version: 1.0.5+sync-hardened',
+                        'Version: 1.0.6',
                         style: TextStyle(color: Colors.black12, fontSize: 10),
                       ),
                     ),
