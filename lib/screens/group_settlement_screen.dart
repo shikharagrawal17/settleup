@@ -1534,14 +1534,10 @@ class _ActivityLogItem extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Action Icon
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(iconData, color: color, size: 16),
+            _MiniAvatar(
+              name: log.actorName, 
+              photoUrl: log.actorPhotoUrl, 
+              size: 36,
             ),
             const SizedBox(width: 14),
             // Text Content
@@ -1828,7 +1824,11 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                           for (var i = 0; i < involvedMembers.length && i < 5; i++)
                             Positioned(
                               left: i * 16.0,
-                              child: _MiniAvatar(name: involvedMembers[i]!.name, size: 28),
+                              child: _MiniAvatar(
+                                name: involvedMembers[i]!.name,
+                                photoUrl: involvedMembers[i]!.photoUrl, 
+                                size: 28,
+                              ),
                             ),
                           if (involvedMembers.length > 5)
                             Positioned(
@@ -1930,7 +1930,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                           padding: const EdgeInsets.only(bottom: 4),
                           child: Row(
                             children: [
-                              _MiniAvatar(name: memberName),
+                              _MiniAvatar(name: memberName, photoUrl: member?.photoUrl),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -2163,13 +2163,15 @@ class _SettlementActivityCard extends StatelessWidget {
 // ─── Mini avatar ─────────────────────────────────────────────────────────
 
 class _MiniAvatar extends StatelessWidget {
-  const _MiniAvatar({required this.name, this.size = 26});
+  const _MiniAvatar({required this.name, this.photoUrl, this.size = 26});
 
   final String name;
+  final String? photoUrl;
   final double size;
 
   @override
   Widget build(BuildContext context) {
+    final hasImage = photoUrl != null && photoUrl!.isNotEmpty;
     return Container(
       width: size,
       height: size,
@@ -2178,12 +2180,26 @@ class _MiniAvatar extends StatelessWidget {
         color: kPrimaryBlue.withValues(alpha: 0.15),
         border: Border.all(color: const Color(0xFF1A1927), width: 2),
       ),
-      child: Center(
-        child: Text(
-          name.isNotEmpty ? name[0].toUpperCase() : '?',
-          style: TextStyle(
-              fontSize: size * 0.4, fontWeight: FontWeight.w600, color: kPrimaryBlue),
-        ),
+      child: ClipOval(
+        child: hasImage 
+          ? Image.network(
+              photoUrl!,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => _buildInitial(),
+            )
+          : _buildInitial(),
+      ),
+    );
+  }
+
+  Widget _buildInitial() {
+    return Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: TextStyle(
+            fontSize: size * 0.4, fontWeight: FontWeight.w600, color: kPrimaryBlue),
       ),
     );
   }
@@ -2457,6 +2473,7 @@ class _SettleTab extends StatelessWidget {
                 onPay: () => onPay(transaction),
                 onRecord: () => onRecord(transaction),
                 onRemind: () => onRemind(transaction),
+                memberMap: memberMap,
               ),
             ),
           ),
@@ -2474,6 +2491,7 @@ class _TransactionCard extends StatelessWidget {
     required this.onPay,
     required this.onRecord,
     required this.onRemind,
+    required this.memberMap,
   });
 
   final SettlementTransaction transaction;
@@ -2481,6 +2499,7 @@ class _TransactionCard extends StatelessWidget {
   final VoidCallback onPay;
   final VoidCallback onRecord;
   final VoidCallback onRemind;
+  final Map<String, GroupMember> memberMap;
 
   @override
   Widget build(BuildContext context) {
@@ -2512,13 +2531,21 @@ class _TransactionCard extends StatelessWidget {
                 width: 70,
                 child: Stack(
                   children: [
-                    _MiniAvatar(name: transaction.fromName, size: 40),
+                    _MiniAvatar(
+                        name: transaction.fromName, 
+                        photoUrl: memberMap[transaction.fromMemberId]?.photoUrl,
+                        size: 40,
+                    ),
                     Positioned(
                       left: 24,
                       child: Container(
                         padding: const EdgeInsets.all(2),
                         decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                        child: _MiniAvatar(name: transaction.toName, size: 40),
+                        child: _MiniAvatar(
+                            name: transaction.toName, 
+                            photoUrl: memberMap[transaction.toMemberId]?.photoUrl,
+                            size: 40,
+                        ),
                       ),
                     ),
                   ],

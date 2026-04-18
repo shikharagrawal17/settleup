@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/settlement_group.dart';
 import '../models/group_member.dart';
@@ -145,33 +146,46 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 24),
                     const Divider(color: Colors.black12),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: kPrimaryBlue.withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.code_rounded, color: kPrimaryBlue, size: 20),
-                        ),
-                        const SizedBox(width: 14),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Developed by',
-                                style: TextStyle(color: Colors.black38, fontSize: 11, fontWeight: FontWeight.w600),
+                    InkWell(
+                      onTap: () async {
+                        final url = Uri.parse('https://www.linkedin.com/in/shikhar-agarwal-17jan2002/');
+                        if (await canLaunchUrl(url)) {
+                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: kPrimaryBlue.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
                               ),
-                              Text(
-                                'Shikhar Agarwal',
-                                style: TextStyle(color: kDarkBlue, fontWeight: FontWeight.w700, fontSize: 13),
+                              child: const Icon(Icons.code_rounded, color: kPrimaryBlue, size: 20),
+                            ),
+                            const SizedBox(width: 14),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Developed by',
+                                    style: TextStyle(color: Colors.black38, fontSize: 11, fontWeight: FontWeight.w600),
+                                  ),
+                                  Text(
+                                    'Shikhar Agarwal',
+                                    style: TextStyle(color: kDarkBlue, fontWeight: FontWeight.w700, fontSize: 13, decoration: TextDecoration.underline),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                            const Icon(Icons.open_in_new_rounded, color: Colors.black26, size: 16),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 24),
                     const Center(
@@ -230,7 +244,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 actions: [
                   IconButton(
                     onPressed: () => _editProfile(context, appState, profile),
-                    icon: const Icon(Icons.account_circle_outlined),
+                    icon: profile.photoUrl != null && profile.photoUrl!.isNotEmpty
+                        ? CircleAvatar(
+                            radius: 14,
+                            backgroundImage: NetworkImage(profile.photoUrl!),
+                          )
+                        : const Icon(Icons.account_circle_outlined),
                   ),
                   IconButton(
                     onPressed: appState.signOut,

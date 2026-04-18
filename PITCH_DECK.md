@@ -72,3 +72,5 @@ The app features a **modern, high-contrast Light Theme** designed for the Indian
 
 ### 📦 Key Summary for Presenting
 Bharat Dues isn't just an expense tracker; it's a financial harmony tool. By combining a **premium UI** with **algorithmic intelligence** and **UPI integration**, we've created the fastest way to stay balanced with your friends and family.
+
+**Developed by: [Shikhar Agarwal](https://www.linkedin.com/in/shikhar-agarwal-17jan2002/)**

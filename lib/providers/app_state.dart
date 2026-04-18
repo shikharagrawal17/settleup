@@ -24,6 +24,42 @@ class AppState extends ChangeNotifier {
   String? _authError;
   Map<String, String> _localContactMap = {};
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+  StreamSubscription<User?>? _userSub;
+
+  AppState() {
+    _initAuth();
+  }
+
+  void _initAuth() {
+    _userSub = _auth.authStateChanges().listen((user) async {
+       if (user != null) {
+         _ensureUserProfile(user);
+       } else if (kIsWeb) {
+         // Silently try to sign in with Google on web if not authenticated
+         try {
+           final googleUser = await _googleSignIn.signInSilently();
+           if (googleUser != null) {
+              final auth = await googleUser.authentication;
+              final cred = GoogleAuthProvider.credential(
+                idToken: auth.idToken,
+                accessToken: auth.accessToken,
+              );
+              await _auth.signInWithCredential(cred);
+           }
+         } catch (e) {
+           debugPrint('Silent sign-in failed: $e');
+         }
+       }
+       notifyListeners();
+    });
+    loadLocalContacts();
+  }
+
+  @override
+  void dispose() {
+    _userSub?.cancel();
+    super.dispose();
+  }
 
   bool get isSigningIn => _isSigningIn;
   String? get authError => _authError;
@@ -539,6 +575,7 @@ class AppState extends ChangeNotifier {
       id: '', // Not needed for set
       actorId: user.uid,
       actorName: user.displayName ?? 'Summary',
+      actorPhotoUrl: user.photoURL,
       action: action,
       targetName: targetName,
       amount: amount,
@@ -578,6 +615,7 @@ class AppState extends ChangeNotifier {
       name: profile.displayName,
       phoneNumber: profile.phoneNumber,
       upiId: profile.upiId,
+      photoUrl: profile.photoUrl,
       isSelf: true,
     );
 

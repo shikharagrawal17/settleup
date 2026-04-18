@@ -20,7 +20,7 @@ This document provides a distilled overview of the current system state, design 
   - `registries/{key}`: Registry for mapping `phone_+91...` or `email_...` to `uid` for instant member discovery.
 
 ## 🛠️ Key Features
-1. **Premium Fintech UI**: Immersive **Paytm-inspired Light Theme** with vibrant blue accents (`#00B9F1`), minimalist white surfaces, and high-contrast typography optimized for accessibility.
+1. **Premium Fintech UI**: Immersive **Fintech Light Theme** with vibrant blue accents (`#00B9F1`), minimalist white surfaces, and high-contrast typography optimized for accessibility.
 2. **Strict Financial Input**: Enforced numeric-only keyboards and decimal-safe input formatters across all currency and contact fields (+91 support).
 3. **Real-Time Sync**: Firestore-backed streams ensuring all members see updates (expenses, settlements, and member edits) instantly.
 3. **Simplified Settlement**: Greedy debt-minimization algorithm reduces transfers across complex group topologies.
