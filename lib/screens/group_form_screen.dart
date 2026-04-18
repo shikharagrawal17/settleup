@@ -374,6 +374,8 @@ class _MemberDraft {
     required this.nameController,
     required this.phoneController,
     required this.upiController,
+    this.existingUid,
+    this.photoUrl,
     this.isSelf = false,
   });
 
@@ -381,6 +383,8 @@ class _MemberDraft {
   final TextEditingController nameController;
   final TextEditingController phoneController;
   final TextEditingController upiController;
+  final String? existingUid;
+  final String? photoUrl;
   final bool isSelf;
   UserProfile? registeredProfile;
 
@@ -390,20 +394,21 @@ class _MemberDraft {
       nameController: TextEditingController(text: member.name),
       phoneController: TextEditingController(text: member.phoneNumber ?? ''),
       upiController: TextEditingController(text: member.upiId ?? ''),
+      existingUid: member.uid,
+      photoUrl: member.photoUrl,
       isSelf: member.isSelf,
     );
   }
 
   GroupMember toMember() {
     final rawPhone = phoneController.text.trim();
-    // Accounting ID is the generated 'manual_...' ID. 
-    // If a profile is found, we store the UID separately.
     return GroupMember(
       id: id,
       name: nameController.text.trim(),
       phoneNumber: rawPhone.isEmpty ? null : AppState.normalisePhone(rawPhone),
       upiId: upiController.text.trim().isEmpty ? null : upiController.text.trim(),
-      uid: registeredProfile?.uid,
+      uid: registeredProfile?.uid ?? existingUid,
+      photoUrl: registeredProfile?.photoUrl ?? photoUrl,
       isSelf: isSelf,
     );
   }

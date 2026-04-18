@@ -165,7 +165,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
         });
 
         if (!exists) {
-          final draft = _MemberDraft.fromMember(member, widget.currentUserId);
+          final draft = _MemberDraft.fromMember(member, widget.profile);
           _members.add(draft);
           if (member.phoneNumber != null && member.phoneNumber!.isNotEmpty) {
             _performLookup(appState, draft);
@@ -568,6 +568,8 @@ class _MemberDraft {
     required this.nameController,
     required this.phoneController,
     required this.upiController,
+    this.existingUid,
+    this.photoUrl,
     this.isSelf = false,
   });
 
@@ -575,6 +577,8 @@ class _MemberDraft {
   final TextEditingController nameController;
   final TextEditingController phoneController;
   final TextEditingController upiController;
+  final String? existingUid;
+  final String? photoUrl;
   final bool isSelf;
   UserProfile? registeredProfile;
 
@@ -588,19 +592,21 @@ class _MemberDraft {
       nameController: TextEditingController(text: member.name),
       phoneController: TextEditingController(text: member.phoneNumber ?? ''),
       upiController: TextEditingController(text: member.upiId ?? ''),
+      existingUid: member.uid,
+      photoUrl: member.photoUrl,
       isSelf: member.id == currentUid || (member.uid != null && member.uid == currentUid) || (currentPhone != null && mPhone != null && mPhone == currentPhone),
     );
   }
 
   GroupMember toMember() {
     final rawPhone = phoneController.text.trim();
-    // Use the stored UID if found, but do NOT change the accounting ID if it's already set.
     return GroupMember(
       id: id,
       name: nameController.text.trim(),
       phoneNumber: rawPhone.isEmpty ? null : AppState.normalisePhone(rawPhone),
       upiId: upiController.text.trim().isEmpty ? null : upiController.text.trim(),
-      uid: registeredProfile?.uid,
+      uid: registeredProfile?.uid ?? existingUid,
+      photoUrl: registeredProfile?.photoUrl ?? photoUrl,
       isSelf: isSelf,
     );
   }

@@ -21,14 +21,18 @@ service cloud.firestore {
     }
 
     // ── Shared groups ─────────────────────────────────────────────────────
-    match /groups/{groupId} {
-      // Allow access if the user's UID is in memberIds, memberLogins, or if their 
-      // verified identifiers (UID/ID) match memberIdentifiers.
+      function getPhoneId() {
+        let phone = request.auth.token.phone_number;
+        return phone.size() > 1 && phone.matches('^\\+.*') ? phone.split('\\+')[1] : phone;
+      }
+
       function isMember() {
         return request.auth != null && (
           request.auth.uid in resource.data.memberIds ||
           (resource.data.keys().contains('memberLogins') && request.auth.uid in resource.data.memberLogins) ||
-          request.auth.uid in resource.data.memberIdentifiers
+          request.auth.uid in resource.data.memberIdentifiers ||
+          (request.auth.token.keys().contains('email') && request.auth.token.email.lower() in resource.data.memberIdentifiers) ||
+          (request.auth.token.keys().contains('phone_number') && (request.auth.token.phone_number in resource.data.memberIdentifiers || getPhoneId() in resource.data.memberIdentifiers))
         );
       }
 
@@ -36,7 +40,9 @@ service cloud.firestore {
         return request.auth != null && (
           request.auth.uid in request.resource.data.memberIds ||
           (request.resource.data.keys().contains('memberLogins') && request.auth.uid in request.resource.data.memberLogins) ||
-          request.auth.uid in request.resource.data.memberIdentifiers
+          request.auth.uid in request.resource.data.memberIdentifiers ||
+          (request.auth.token.keys().contains('email') && request.auth.token.email.lower() in request.resource.data.memberIdentifiers) ||
+          (request.auth.token.keys().contains('phone_number') && (request.auth.token.phone_number in request.resource.data.memberIdentifiers || getPhoneId() in request.resource.data.memberIdentifiers))
         );
       }
 
@@ -51,7 +57,9 @@ service cloud.firestore {
           return request.auth != null && (
             request.auth.uid in groupData.memberIds ||
             (groupData.keys().contains('memberLogins') && request.auth.uid in groupData.memberLogins) ||
-            request.auth.uid in groupData.memberIdentifiers
+            request.auth.uid in groupData.memberIdentifiers ||
+            (request.auth.token.keys().contains('email') && request.auth.token.email.lower() in groupData.memberIdentifiers) ||
+            (request.auth.token.keys().contains('phone_number') && (request.auth.token.phone_number in groupData.memberIdentifiers || getPhoneId() in groupData.memberIdentifiers))
           );
         }
         allow read, create: if isGroupMember();
@@ -64,7 +72,9 @@ service cloud.firestore {
            return request.auth != null && (
             request.auth.uid in groupData.memberIds ||
             (groupData.keys().contains('memberLogins') && request.auth.uid in groupData.memberLogins) ||
-            request.auth.uid in groupData.memberIdentifiers
+            request.auth.uid in groupData.memberIdentifiers ||
+            (request.auth.token.keys().contains('email') && request.auth.token.email.lower() in groupData.memberIdentifiers) ||
+            (request.auth.token.keys().contains('phone_number') && (request.auth.token.phone_number in groupData.memberIdentifiers || getPhoneId() in groupData.memberIdentifiers))
           );
         }
         allow read, create: if isGroupMember();
@@ -78,7 +88,9 @@ service cloud.firestore {
            return request.auth != null && (
             request.auth.uid in groupData.memberIds ||
             (groupData.keys().contains('memberLogins') && request.auth.uid in groupData.memberLogins) ||
-            request.auth.uid in groupData.memberIdentifiers
+            request.auth.uid in groupData.memberIdentifiers ||
+            (request.auth.token.keys().contains('email') && request.auth.token.email.lower() in groupData.memberIdentifiers) ||
+            (request.auth.token.keys().contains('phone_number') && (request.auth.token.phone_number in groupData.memberIdentifiers || getPhoneId() in groupData.memberIdentifiers))
           );
         }
         allow read, create: if isGroupMember();

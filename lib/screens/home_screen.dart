@@ -575,7 +575,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
         final isMe = m.id == uid || 
                      (m.uid != null && m.uid == uid) || 
-                     (userPhone != null && mPhone != null && mPhone == userPhone);
+                     (userPhone != null && mPhone != null && mPhone == userPhone) ||
+                     (profile.email.isNotEmpty && m.phoneNumber != null && m.phoneNumber!.toLowerCase().trim() == profile.email.toLowerCase().trim());
         
         if (isMe) {
           myNetRelGroup += balances[m.id] ?? 0.0;
