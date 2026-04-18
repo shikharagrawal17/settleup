@@ -1,10 +1,8 @@
-import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -25,15 +23,8 @@ class AppState extends ChangeNotifier {
   bool _isSigningIn = false;
   String? _authError;
   Map<String, String> _localContactMap = {};
-  List<GroupMember> _googleContacts = [];
-  List<GroupMember> get googleContacts => _googleContacts;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: [
-      'email',
-      'https://www.googleapis.com/auth/contacts.readonly',
-    ],
-  );
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
   StreamSubscription<User?>? _userSub;
 
   AppState() {
@@ -96,48 +87,6 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading contacts: $e');
-    }
-  }
-
-  Future<void> fetchGoogleContacts() async {
-    try {
-      final googleUser = await _googleSignIn.signInSilently() ?? await _googleSignIn.signIn();
-      if (googleUser == null) return;
-
-      final authHeaders = await googleUser.authHeaders;
-      final response = await http.get(
-        Uri.parse('https://people.googleapis.com/v1/people/me/connections?personFields=names,phoneNumbers'),
-        headers: authHeaders,
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List connections = data['connections'] ?? [];
-        
-        final List<GroupMember> resolved = [];
-        for (final c in connections) {
-          final names = c['names'] as List?;
-          final name = names != null && names.isNotEmpty ? names[0]['displayName'] ?? 'Unknown' : 'Unknown';
-          
-          final phones = c['phoneNumbers'] as List?;
-          if (phones != null && phones.isNotEmpty) {
-             for (final p in phones) {
-               final phone = p['value'] as String?;
-               if (phone != null) {
-                 resolved.add(GroupMember(
-                   id: 'google_${c['recordId'] ?? DateTime.now().millisecondsSinceEpoch}_${resolved.length}',
-                   name: name,
-                   phoneNumber: phone,
-                 ));
-               }
-             }
-          }
-        }
-        _googleContacts = resolved;
-        notifyListeners();
-      }
-    } catch (e) {
-      debugPrint('Error fetching Google contacts: $e');
     }
   }
 
