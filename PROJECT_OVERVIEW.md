@@ -22,11 +22,16 @@ This document provides a distilled overview of the system state, design decision
    - **Friends Tab**: Aggregates net balances across all groups.
    - **Terminology Audit**: Standardized UI copy using "Owes" and "Is owed" for better financial clarity.
    - **Global Netting Architecture**: Recording a global receipt automatically confirms all underlying group-level transactions, significantly reducing UI noise and "pending" notifications.
-3. **Advanced Settlement Engine**:
-   - **Handshake Lifecycle**: Every global settlement requires mutual agreement.
+4. **Advanced Settlement Engine**:
+   - **Handshake Lifecycle**: Every settlement (Global or Group-level) requires a mutual handshake. Receiver confirms receipt to finalize the balance.
+   - **WhatsApp Verification**: Payers can trigger an automated WhatsApp notification to the receiver immediately after recording a payment, prompting them to confirm the pending receipt.
    - **Bidirectional UPI**: Integrated deep-linking and dynamic QR generation for inbound and outbound payments.
-   - **WhatsApp Automation**: Formatted sharing of payment requests and reminders with friend-specific balance details.
-4. **Precision Expense Logic**: 
+5. **High-Trust Activity Tab**:
+   - **Interactive Feed**: Log entries for recorded payments include inline "Confirm Receipt" buttons for the receiver.
+   - **Granular Auditing**: Real-time tracking of confirmations, disputes, and deletions with distinct visual indicators and identity-aware role verification.
+   - **Identity Resilience**: All access and confirmation checks use a hybrid logic (UID + Manual Identifier) to ensure seamless operation regardless of member registration status.
+6. **WhatsApp Automation**: Formatted sharing of payment requests and reminders with friend-specific balance details.
+7. **Precision Expense Logic**: 
    - **Split Modes**: Equal, Percentage, Shares, and Exact Amount.
    - **Cent-Based Rounding**: Ensures `Total == sum(Shares)` within ₹0.01 tolerance across any number of members.
 

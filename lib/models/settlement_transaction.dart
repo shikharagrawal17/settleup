@@ -7,6 +7,7 @@ class SettlementTransaction {
     required this.amount,
     this.payeeUpiId,
     this.payerPhoneNumber,
+    this.payeePhoneNumber,
   });
 
   final String fromMemberId;
@@ -16,4 +17,5 @@ class SettlementTransaction {
   final double amount;
   final String? payeeUpiId;
   final String? payerPhoneNumber;
+  final String? payeePhoneNumber;
 }

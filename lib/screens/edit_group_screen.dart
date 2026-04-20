@@ -98,34 +98,38 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: AppSurface(
+      builder: (ctx) => AlertDialog(
+        surfaceTintColor: Colors.transparent,
+        backgroundColor: Colors.white,
+        icon: const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 40),
+        title: const Text('Delete Group', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+        content: Text('Are you sure you want to delete "${widget.group.name}"?', textAlign: TextAlign.center, style: const TextStyle(color: Colors.black87, fontSize: 15)),
+        actions: [
+          SizedBox(
+            width: double.infinity,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 40),
-                const SizedBox(height: 16),
-                const Text('Delete Group', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: Colors.black87)),
-                const SizedBox(height: 12),
-                Text('Are you sure you want to delete "${widget.group.name}"?', textAlign: TextAlign.center, style: const TextStyle(color: Colors.black87)),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel'))),
-                    const SizedBox(width: 12),
-                    Expanded(child: FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true), 
-                      style: FilledButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
-                      child: const Text('Delete'),
-                    )),
-                  ],
-                )
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Delete'),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.black87)),
+                ),
               ],
             ),
           ),
-        ),
+        ],
+        actionsAlignment: MainAxisAlignment.center,
       ),
     );
 

@@ -928,7 +928,7 @@ class _PendingSettlementCard extends StatelessWidget {
             if (pending.isWaitingForMe) ...[
               const SizedBox(width: 12),
               IconButton(
-                onPressed: () => appState.disputeSettlement(groupId: pending.groupId, settlementId: pending.record.id),
+                onPressed: () => appState.disputeSettlement(groupId: pending.groupId, record: pending.record),
                 icon: const Icon(Icons.close, color: Colors.redAccent, size: 18),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
@@ -1449,15 +1449,16 @@ class _GlobalActivityCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
                       Text(
                         _formatDateTime(timestamp),
                         style: const TextStyle(color: Colors.black45, fontSize: 11),
                       ),
-                      const SizedBox(width: 8),
                       const Text('•', style: TextStyle(color: Colors.black12, fontSize: 10)),
-                      const SizedBox(width: 8),
                       Text(
                         '${group.members.length} members',
                         style: const TextStyle(color: Colors.black38, fontSize: 11),
@@ -1477,7 +1478,11 @@ class _GlobalActivityCard extends StatelessWidget {
                 },
                 icon: const Icon(Icons.restore, size: 16),
                 label: const Text('Restore', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                style: TextButton.styleFrom(foregroundColor: kPrimaryBlue),
+                style: TextButton.styleFrom(
+                  foregroundColor: kPrimaryBlue,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                ),
               ),
           ],
         ),

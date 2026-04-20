@@ -387,7 +387,13 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
         if (mounted) {
           Navigator.of(context).pop(); // Close the settle sheet
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Payment confirmed and recorded!')),
+            SnackBar(
+              content: const Text('Payment confirmed and recorded!'),
+              action: transaction.payeePhoneNumber != null ? SnackBarAction(
+                label: 'Notify',
+                onPressed: () => _sendWhatsappNotifyPayee(transaction),
+              ) : null,
+            ),
           );
         }
       }
@@ -405,6 +411,24 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
       transactions: transactions,
     );
     Share.share(message, subject: '${_group.name} settlement');
+  }
+
+  Future<void> _sendWhatsappNotifyPayee(SettlementTransaction transaction) async {
+    final phone = transaction.payeePhoneNumber;
+    if (phone == null || phone.isEmpty) return;
+    
+    final message = "Hey ${transaction.toName}, I've just recorded a payment of ₹${formatAmount(transaction.amount)} for '${_group.name}' on Bharat Dues. Please confirm it! 💸";
+    final url = Uri.parse('whatsapp://send?phone=$phone&text=${Uri.encodeComponent(message)}');
+    
+    try {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('WhatsApp could not be opened.')),
+        );
+      }
+    }
   }
 
   Future<void> _sendWhatsappReminder(SettlementTransaction transaction) async {
@@ -1004,7 +1028,24 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                             record: record,
                             confirmed: isReceiver,
                           );
-                          if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                          if (sheetContext.mounted) {
+                             Navigator.of(sheetContext).pop();
+                             if (!isReceiver) {
+                               ScaffoldMessenger.of(context).showSnackBar(
+                                 SnackBar(
+                                   content: const Text('Payment recorded!'),
+                                   action: transaction.payeePhoneNumber != null ? SnackBarAction(
+                                     label: 'Notify Receiver',
+                                     onPressed: () => _sendWhatsappNotifyPayee(transaction),
+                                   ) : null,
+                                 ),
+                               );
+                             } else {
+                               ScaffoldMessenger.of(context).showSnackBar(
+                                 const SnackBar(content: Text('Receipt confirmed!')),
+                               );
+                             }
+                           }
                         },
                         child: Text(transaction.toMemberId == _currentMemberId(resolvedMembers) ? 'Confirm Receipt' : 'Record Payment'),
                       ),
@@ -1594,7 +1635,18 @@ class _ActivityLogTab extends StatelessWidget {
             else
               ...grouped.entries.expand((group) => [
                     _MonthHeader(title: group.key),
-                    ...group.value.map((log) => _ActivityLogItem(log: log)),
+                    ...group.value.map((log) {
+                      final sId = log.metadata['settlementId'];
+                      final pending = sId != null 
+                        ? pendingSettlements.cast<SettlementRecord?>().firstWhere((s) => s?.id == sId, orElse: () => null)
+                        : null;
+                      return _ActivityLogItem(
+                        log: log, 
+                        pendingSettlement: pending,
+                        groupId: groupId,
+                        memberMap: memberMap,
+                      );
+                    }),
                   ]),
           ],
         );
@@ -1620,17 +1672,36 @@ class _ActivityLogTab extends StatelessWidget {
 }
 
 class _ActivityLogItem extends StatelessWidget {
-  const _ActivityLogItem({required this.log});
+  const _ActivityLogItem({
+    required this.log,
+    this.pendingSettlement,
+    this.groupId,
+    this.memberMap,
+  });
   final ActivityLog log;
+  final SettlementRecord? pendingSettlement;
+  final String? groupId;
+  final Map<String, GroupMember>? memberMap;
 
   @override
   Widget build(BuildContext context) {
+    final appState = context.read<AppState>();
     final iconData = _getIconForAction(log.action);
     final color = _getColorForAction(log.action);
-    final isMe = log.actorId == FirebaseAuth.instance.currentUser?.uid;
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final isMe = log.actorId == currentUid;
     final actor = isMe ? 'You' : log.actorName;
     
-    // DETAIL GENERATION
+    // Check if I can confirm this (if it's a recorded settlement and I am the receiver)
+    bool canConfirm = false;
+    if (pendingSettlement != null && groupId != null && memberMap != null) {
+      final toMember = memberMap![pendingSettlement!.toMemberId];
+      canConfirm = pendingSettlement!.toMemberId == currentUid || (toMember?.uid != null && toMember?.uid == currentUid);
+    }
+
+    // ... I'll rewrite the build method logic carefully ...
+    // Note: I already checked the structure above.
+    
     String details = '';
     final changes = log.changedFields;
     if (log.action == ActivityAction.expenseEdited && changes.isNotEmpty) {
@@ -1638,12 +1709,10 @@ class _ActivityLogItem extends StatelessWidget {
       if (changes.contains('amount') && log.oldAmount != null) {
         detailParts.add('amount from ₹${formatAmount(log.oldAmount!)} to ₹${formatAmount(log.amount ?? 0)}');
       }
-      
       final otherChanges = changes.where((c) => c != 'amount').toList();
       if (otherChanges.isNotEmpty) {
         detailParts.add('fields: ${otherChanges.join(', ')}');
       }
-      
       details = ' (${detailParts.join('; ')})';
     } else if (log.action == ActivityAction.groupEdited) {
        details = ' (New name: ${log.targetName})';
@@ -1653,60 +1722,63 @@ class _ActivityLogItem extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: AppSurface(
         padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
           children: [
-            _MiniAvatar(
-              name: log.actorName, 
-              photoUrl: log.actorPhotoUrl, 
-              size: 36,
-            ),
-            const SizedBox(width: 14),
-            // Text Content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  RichText(
-                    text: TextSpan(
-                      style: const TextStyle(
-                          color: Colors.black87, fontSize: 13, height: 1.4),
-                      children: [
-                        TextSpan(
-                            text: actor,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: kDarkBlue)),
-                        TextSpan(text: ' ${_getActionText(log.action)} '),
-                        TextSpan(
-                            text: log.targetName,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: kDarkBlue)),
-                        if (log.amount != null) ...[
-                          const TextSpan(text: ' of '),
-                          TextSpan(
-                              text: '₹${formatAmount(log.amount ?? 0)}',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF00897B))),
-                        ],
-                        if (details.isNotEmpty)
-                          TextSpan(
-                            text: details,
-                            style: const TextStyle(color: Colors.black38, fontSize: 11, fontStyle: FontStyle.italic),
-                          ),
-                      ],
-                    ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _MiniAvatar(
+                  name: log.actorName, 
+                  photoUrl: log.actorPhotoUrl, 
+                  size: 36,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      RichText(
+                        text: TextSpan(
+                          style: const TextStyle(color: Colors.black87, fontSize: 13, height: 1.4),
+                          children: [
+                            TextSpan(text: actor, style: const TextStyle(fontWeight: FontWeight.w700, color: kDarkBlue)),
+                            TextSpan(text: ' ${_getActionText(log.action)} '),
+                            TextSpan(text: log.targetName, style: const TextStyle(fontWeight: FontWeight.w600, color: kDarkBlue)),
+                            if (log.amount != null) ...[
+                              const TextSpan(text: ' of '),
+                              TextSpan(text: '₹${formatAmount(log.amount ?? 0)}', style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF00897B))),
+                            ],
+                            if (details.isNotEmpty)
+                              TextSpan(text: details, style: const TextStyle(color: Colors.black38, fontSize: 11, fontStyle: FontStyle.italic)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(_formatTime(log.timestamp), style: const TextStyle(color: Colors.black12, fontSize: 10)),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatTime(log.timestamp),
-                    style: const TextStyle(color: Colors.black12, fontSize: 10),
+                ),
+              ],
+            ),
+            if (canConfirm) ...[
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  FilledButton.icon(
+                    onPressed: () => appState.confirmSettlement(groupId: groupId!, record: pendingSettlement!),
+                    icon: const Icon(Icons.check, size: 14),
+                    label: const Text('Confirm Receipt', style: TextStyle(fontSize: 12)),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF4ADE80), 
+                      foregroundColor: Colors.black,
+                      minimumSize: Size.zero,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    ),
                   ),
                 ],
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -1733,6 +1805,8 @@ class _ActivityLogItem extends StatelessWidget {
         return Icons.settings_rounded;
       case ActivityAction.memberAdded:
         return Icons.person_add_outlined;
+      case ActivityAction.settlementDeleted:
+        return Icons.delete_forever_outlined;
       default:
         return Icons.info_outline;
     }
@@ -1758,6 +1832,8 @@ class _ActivityLogItem extends StatelessWidget {
         return Colors.black45;
       case ActivityAction.memberAdded:
         return const Color(0xFFF687B3);
+      case ActivityAction.settlementDeleted:
+        return Colors.redAccent;
       default:
         return Colors.black12;
     }
@@ -1783,6 +1859,8 @@ class _ActivityLogItem extends StatelessWidget {
         return 'updated settings for';
       case ActivityAction.memberAdded:
         return 'added member';
+      case ActivityAction.settlementDeleted:
+        return 'deleted';
       default:
         return 'performed';
     }
@@ -2127,8 +2205,11 @@ class _SettlementActivityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
-    final isReceiver = settlement.toMemberId == currentUid;
-    final isSender = settlement.fromMemberId == currentUid;
+    final toMember = memberMap[settlement.toMemberId];
+    final fromMember = memberMap[settlement.fromMemberId];
+    
+    final isReceiver = settlement.toMemberId == currentUid || (toMember?.uid != null && toMember?.uid == currentUid);
+    final isSender = settlement.fromMemberId == currentUid || (fromMember?.uid != null && fromMember?.uid == currentUid);
 
     Color statusColor;
     IconData statusIcon;
@@ -2233,7 +2314,7 @@ class _SettlementActivityCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton.icon(
-                    onPressed: () => appState.disputeSettlement(groupId: groupId, settlementId: settlement.id),
+                    onPressed: () => appState.disputeSettlement(groupId: groupId, record: settlement),
                     icon: const Icon(Icons.close, size: 14),
                     label: const Text('Dispute'),
                     style: TextButton.styleFrom(foregroundColor: Colors.redAccent, visualDensity: VisualDensity.compact),

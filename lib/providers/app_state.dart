@@ -1108,12 +1108,17 @@ class AppState extends ChangeNotifier {
     recordData['createdBy'] = user.uid;
     recordData['status'] = confirmed ? SettlementStatus.confirmed.name : SettlementStatus.pending.name;
 
-    await _settlementsCol(groupId).add(recordData);
+    final docRef = await _settlementsCol(groupId).add(recordData);
     await _logActivity(
       groupId: groupId,
       action: confirmed ? ActivityAction.settlementConfirmed : ActivityAction.settlementRecorded,
       targetName: "Payment to ${record.toName}",
       amount: record.amount,
+      metadata: {
+        'settlementId': docRef.id,
+        'fromMemberId': record.fromMemberId,
+        'toMemberId': record.toMemberId,
+      },
     );
     await _groupDoc(groupId).update({'updatedAt': FieldValue.serverTimestamp()});
 
@@ -1165,10 +1170,10 @@ class AppState extends ChangeNotifier {
 
   Future<void> disputeSettlement({
     required String groupId,
-    required String settlementId,
+    required SettlementRecord record,
   }) async {
     final batch = _firestore.batch();
-    batch.update(_settlementsCol(groupId).doc(settlementId), {
+    batch.update(_settlementsCol(groupId).doc(record.id), {
       'status': SettlementStatus.disputed.name,
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -1178,7 +1183,8 @@ class AppState extends ChangeNotifier {
     _logActivity(
       groupId: groupId,
       action: ActivityAction.settlementDisputed,
-      targetName: "A payment record",
+      targetName: "Payment from ${record.fromName}",
+      amount: record.amount,
       batch: batch,
     );
     await batch.commit();
@@ -1196,7 +1202,7 @@ class AppState extends ChangeNotifier {
     _logActivity(
       groupId: groupId,
       action: ActivityAction.settlementDeleted,
-      targetName: "Payment record for ₹${formatAmount(record.amount)}",
+      targetName: "Payment from ${record.fromName}",
       batch: batch,
       amount: record.amount,
     );

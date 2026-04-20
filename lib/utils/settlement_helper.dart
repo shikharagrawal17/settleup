@@ -232,6 +232,7 @@ List<SettlementTransaction> _settleBalances(
         amount: amount,
         payeeUpiId: creditor.member.upiId,
         payerPhoneNumber: debtor.member.phoneNumber,
+        payeePhoneNumber: creditor.member.phoneNumber,
       ),
     );
 

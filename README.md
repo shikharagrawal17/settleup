@@ -26,6 +26,7 @@
 *   **Confirm & Record**: A high-trust settlement lifecycle. 
     *   **Inbound**: Confirm or Dispute payments received from others.
     *   **Outbound**: Track pending payments you've sent.
+    *   **WhatsApp Notification**: Immediately notify receivers via WhatsApp after recording a payment, prompting them for a "handshake" confirmation.
 *   **Global Netting Logic**: Recording a global receipt automatically "handshakes" (confirms) all underlying group-level debts for that friend, eliminating redundant notifications.
 *   **Bidirectional UPI**:
     *   **Pay Out**: Launches UPI apps (GPay, PhonePe, Paytm, etc.) directly.
@@ -34,7 +35,8 @@
 
 ### 🏠 Global Dashboard (Home)
 *   **Unified Friends Tab**: Command hub for cross-group settlements. Remind friends or settle your total net dues in one shot.
-*   **Global Activity Log**: Real-time trail of group lifecycle events (creation, deletion, restoration) across the entire platform.
+*   **Interactive Activity Tab**: Real-time trail of group events and financial actions. Includes inline "Confirm Receipt" buttons for pending payments, unified across all your shared activities.
+*   **Identity Resilience**: Seamless access and verification logic that works across registered UIDs and manual phone/email identifiers.
 
 ### 🌐 Web & PWA Optimization
 *   **Add to Home Screen**: High-quality PWA support with optimized manifest and icons.
