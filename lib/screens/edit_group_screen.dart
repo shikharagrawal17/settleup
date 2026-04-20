@@ -12,6 +12,7 @@ import '../models/user_profile.dart';
 import '../providers/app_state.dart';
 import '../utils/settlement_helper.dart';
 import '../widgets/app_shell_widgets.dart';
+import '../widgets/member_management_widgets.dart'; // New shared widgets
 import 'contact_picker_screen.dart';
 
 
@@ -36,7 +37,7 @@ class EditGroupScreen extends StatefulWidget {
 class _EditGroupScreenState extends State<EditGroupScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  late final List<_MemberDraft> _members;
+  late final List<MemberDraft> _members;
   late final Map<String, double> _balances;
 
   @override
@@ -49,7 +50,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
       settlements: widget.settlements,
     );
     _members = widget.group.members
-        .map((m) => _MemberDraft.fromMember(m, widget.profile))
+        .map((m) => MemberDraft.fromMember(m, currentUserProfile: widget.profile))
         .toList();
   }
 
@@ -169,7 +170,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
         });
 
         if (!exists) {
-          final draft = _MemberDraft.fromMember(member, widget.profile);
+          final draft = MemberDraft.fromMember(member, currentUserProfile: widget.profile);
           _members.add(draft);
           if (member.phoneNumber != null && member.phoneNumber!.isNotEmpty) {
             _performLookup(appState, draft);
@@ -179,9 +180,9 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
     });
   }
 
-  Future<void> _performLookup(AppState appState, _MemberDraft draft) async {
+  Future<void> _performLookup(AppState appState, MemberDraft draft) async {
     final phone = draft.phoneController.text.trim();
-    if (phone.length < 10) return;
+    if (phone.length < 5) return; // Standardized
     final profile = await appState.lookupUserByContact(phone);
     if (!mounted) return;
     setState(() {
@@ -201,16 +202,18 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
     final isEdit = editIndex != null;
     final existing = isEdit ? _members[editIndex] : null;
 
-    final result = await showModalBottomSheet<_MemberSheetResult>(
+    final result = await showModalBottomSheet<MemberSheetResult>(
       context: context,
       isScrollControlled: true,
       useRootNavigator: true,
-      builder: (_) => _MemberSheet(
+      builder: (_) => MemberSheet(
         initialName: existing?.nameController.text ?? '',
         initialContact: existing?.phoneController.text ?? '',
         initialUpi: existing?.upiController.text ?? '',
         initialProfile: existing?.registeredProfile,
+        existingUid: existing?.existingUid,
         isEdit: isEdit,
+        isSelf: existing?.isSelf ?? false,
       ),
     );
 
@@ -221,7 +224,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
       existing.upiController.text = result.upi;
       existing.registeredProfile = result.profile;
     } else {
-      final draft = _MemberDraft(
+      final draft = MemberDraft(
         id: 'manual_${DateTime.now().microsecondsSinceEpoch}',
         nameController: TextEditingController(text: result.name),
         phoneController: TextEditingController(text: result.phone),
@@ -331,9 +334,11 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _nameController,
+                          textCapitalization: TextCapitalization.sentences,
                           enabled: true, // Democratic renaming
                           decoration: const InputDecoration(
                             labelText: 'Group Name',
+                            prefixIcon: Icon(Icons.group_work_outlined),
                             suffixIcon: Icon(Icons.edit_outlined, size: 16),
                           ),
                           validator: (v) => (v ?? '').trim().isEmpty ? 'Enter a name' : null,
@@ -371,7 +376,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
 
                       return Padding(
                         padding: EdgeInsets.only(bottom: index == _members.length - 1 ? 0 : 6.0),
-                        child: _CompactMemberTile(
+                        child: CompactMemberTile(
                           name: draft.nameController.text,
                           phone: draft.phoneController.text,
                           upiId: draft.upiController.text,
@@ -435,332 +440,6 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Compact member tile (shared with group form) ─────────────────────────
-
-class _CompactMemberTile extends StatelessWidget {
-  const _CompactMemberTile({
-    required this.name,
-    required this.phone,
-    required this.upiId,
-    required this.isRegistered,
-    required this.onTap,
-    required this.onRemove,
-    this.trailing,
-    this.canRemove = true,
-    this.isSelf = false,
-  });
-
-  final String name;
-  final String phone;
-  final String upiId;
-  final bool isRegistered;
-  final VoidCallback onTap;
-  final VoidCallback onRemove;
-  final Widget? trailing;
-  final bool canRemove;
-  final bool isSelf;
-
-  @override
-  Widget build(BuildContext context) {
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    final subtitleParts = [
-      if (phone.isNotEmpty) phone,
-      if (upiId.isNotEmpty) upiId,
-    ];
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.03),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: kPrimaryBlue.withValues(alpha: 0.12),
-                ),
-                child: Center(
-                  child: Text(initial,
-                      style: const TextStyle(fontWeight: FontWeight.w600, color: kPrimaryBlue, fontSize: 14)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            name.isNotEmpty ? name : 'Unnamed',
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (isSelf) ...[
-                          const SizedBox(width: 6),
-                          _badge('You', kDarkBlue),
-                        ],
-                      ],
-                    ),
-                    if (subtitleParts.isNotEmpty)
-                      Text(
-                        subtitleParts.join(' · '),
-                        style: const TextStyle(color: Colors.black45, fontSize: 11),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                  ],
-                ),
-              ),
-              if (trailing != null) ...[
-                const SizedBox(width: 6),
-                trailing!,
-              ],
-              if (!isSelf)
-                GestureDetector(
-                  onTap: onRemove,
-                  behavior: HitTestBehavior.opaque,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Icon(Icons.close, size: 16,
-                        color: canRemove ? Colors.black38 : Colors.black12),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  static Widget _badge(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(text,
-          style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700)),
-    );
-  }
-}
-
-// ─── Member draft ─────────────────────────────────────────────────────────
-
-class _MemberDraft {
-  _MemberDraft({
-    required this.id,
-    required this.nameController,
-    required this.phoneController,
-    required this.upiController,
-    this.existingUid,
-    this.photoUrl,
-    this.isSelf = false,
-  });
-
-  final String id;
-  final TextEditingController nameController;
-  final TextEditingController phoneController;
-  final TextEditingController upiController;
-  final String? existingUid;
-  final String? photoUrl;
-  final bool isSelf;
-  UserProfile? registeredProfile;
-
-  factory _MemberDraft.fromMember(GroupMember member, UserProfile profile) {
-    final currentUid = profile.uid;
-    final currentPhone = (profile.phoneNumber ?? '').isNotEmpty ? AppState.normalisePhone(profile.phoneNumber!) : null;
-    final mPhone = (member.phoneNumber ?? '').isNotEmpty ? AppState.normalisePhone(member.phoneNumber!) : null;
-
-    return _MemberDraft(
-      id: member.id,
-      nameController: TextEditingController(text: member.name),
-      phoneController: TextEditingController(text: member.phoneNumber ?? ''),
-      upiController: TextEditingController(text: member.upiId ?? ''),
-      existingUid: member.uid,
-      photoUrl: member.photoUrl,
-      isSelf: member.id == currentUid || (member.uid != null && member.uid == currentUid) || (currentPhone != null && mPhone != null && mPhone == currentPhone),
-    );
-  }
-
-  GroupMember toMember() {
-    final rawPhone = phoneController.text.trim();
-    return GroupMember(
-      id: id,
-      name: nameController.text.trim(),
-      phoneNumber: rawPhone.isEmpty ? null : AppState.normalisePhone(rawPhone),
-      upiId: upiController.text.trim().isEmpty ? null : upiController.text.trim(),
-      uid: registeredProfile?.uid ?? existingUid,
-      photoUrl: registeredProfile?.photoUrl ?? photoUrl,
-      isSelf: isSelf,
-    );
-  }
-
-  void dispose() {
-    nameController.dispose();
-    phoneController.dispose();
-    upiController.dispose();
-  }
-}
-
-// ─── Member sheet result ───────────────────────────────────────────────────
-
-class _MemberSheetResult {
-  const _MemberSheetResult({
-    required this.name,
-    required this.phone,
-    required this.upi,
-    this.profile,
-  });
-  final String name;
-  final String phone;
-  final String upi;
-  final UserProfile? profile;
-}
-
-// ─── Member bottom-sheet widget ────────────────────────────────────────────
-
-class _MemberSheet extends StatefulWidget {
-  const _MemberSheet({
-    required this.initialName,
-    required this.initialContact,
-    required this.initialUpi,
-    required this.isEdit,
-    this.initialProfile,
-  });
-
-  final String initialName;
-  final String initialContact;
-  final String initialUpi;
-  final bool isEdit;
-  final UserProfile? initialProfile;
-
-  @override
-  State<_MemberSheet> createState() => _MemberSheetState();
-}
-
-class _MemberSheetState extends State<_MemberSheet> {
-  late final TextEditingController _name;
-  late final TextEditingController _contact;
-  late final TextEditingController _upi;
-  final _formKey = GlobalKey<FormState>();
-  UserProfile? _profile;
-  Timer? _debounce;
-
-  @override
-  void initState() {
-    super.initState();
-    _name = TextEditingController(text: widget.initialName);
-    _contact = TextEditingController(text: widget.initialContact);
-    _upi = TextEditingController(text: widget.initialUpi);
-    _profile = widget.initialProfile;
-    _contact.addListener(_onContactChanged);
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _contact.removeListener(_onContactChanged);
-    _name.dispose();
-    _contact.dispose();
-    _upi.dispose();
-    super.dispose();
-  }
-
-  void _onContactChanged() {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 600), () async {
-      if (!mounted) return;
-      final contactValue = _contact.text.trim();
-      if (contactValue.length < 5) return;
-      final appState = context.read<AppState>();
-      final profile = await appState.lookupUserByContact(contactValue);
-      if (!mounted) return;
-      setState(() {
-        _profile = profile;
-        if (profile != null) {
-          if (_name.text.trim().isEmpty) _name.text = profile.displayName;
-          // Background auto-fill from discovery, but no longer editable by creator
-          if (profile.upiId.isNotEmpty) {
-            _upi.text = profile.upiId;
-          }
-        }
-      });
-    });
-  }
-
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
-    Navigator.of(context).pop(
-      _MemberSheetResult(
-        name: _name.text.trim(),
-        phone: _contact.text.trim(),
-        upi: _upi.text.trim(),
-        profile: _profile,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, bottom + 16),
-      child: AppSurface(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SectionHeading(
-                title: widget.isEdit ? 'Edit Member' : 'Add Member',
-                subtitle: 'Enter details — phone numbers & emails auto-fetch registered users.',
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _name,
-                decoration: const InputDecoration(labelText: 'Name', isDense: true),
-                validator: (v) => (v ?? '').trim().isEmpty ? 'Enter a name' : null,
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: _contact,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number or Email',
-                  prefixIcon: Icon(Icons.contact_mail_outlined, size: 20),
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _submit,
-                  child: Text(widget.isEdit ? 'Save' : 'Add'),
-                ),
-              ),
-            ],
           ),
         ),
       ),
