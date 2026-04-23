@@ -206,7 +206,7 @@ class AppState extends ChangeNotifier {
         memberIdentifiers.add(m.id);
         if (m.uid != null) memberIdentifiers.add(m.uid!);
         if (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) {
-          memberIdentifiers.add(m.phoneNumber!);
+          memberIdentifiers.add(normalisePhone(m.phoneNumber!));
         }
       }
 
@@ -693,30 +693,7 @@ class AppState extends ChangeNotifier {
 
   // ─── Group streams ────────────────────────────────────────────────────
 
-  /// All groups where the current user is a member, ordered by name.
-  Stream<List<SettlementGroup>> groupsStream({required String uid, String? phoneNumber}) {
-    // Collect all possible identifiers for the user
-    final identifiers = <String>[uid];
-    if (phoneNumber != null && phoneNumber.isNotEmpty) {
-      identifiers.add(normalisePhone(phoneNumber));
-    }
 
-    return _groupsCol
-        .where('memberIdentifiers', arrayContainsAny: identifiers)
-        .snapshots()
-        .map((snap) {
-      final items = snap.docs
-          .map((doc) => SettlementGroup.fromJson(doc.id, doc.data()))
-          .where((g) {
-            // Soft delete check
-            final doc = snap.docs.firstWhere((d) => d.id == g.id);
-            return doc.data()['isDeleted'] != true;
-          })
-          .toList();
-      items.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      return items;
-    });
-  }
 
   // ─── Activity Logs ─────────────────────────────────────────────────────
 
@@ -762,6 +739,33 @@ class AppState extends ChangeNotifier {
     } else {
       await _activitiesCol(groupId).add(log.toFirestore());
     }
+  }
+
+  Stream<List<SettlementGroup>> groupsStream({required String uid, String? phoneNumber}) {
+    final identifiers = <String>[uid];
+    if (phoneNumber != null && phoneNumber.isNotEmpty) {
+      identifiers.add(normalisePhone(phoneNumber));
+    }
+    
+    return _firestore.collection('groups')
+        .where('memberIdentifiers', arrayContainsAny: identifiers)
+        .snapshots()
+        .map((snapshot) {
+          final items = snapshot.docs
+              .map((doc) {
+                try {
+                  return SettlementGroup.fromJson(doc.id, doc.data());
+                } catch (e) {
+                  return null;
+                }
+              })
+              .whereType<SettlementGroup>()
+              .where((g) => !g.isDeleted)
+              .toList();
+          
+          items.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+          return items;
+        });
   }
 
   /// All groups where the current user is a member, including deleted ones.
@@ -836,7 +840,7 @@ class AppState extends ChangeNotifier {
       memberIdentifiers.add(m.id);
       if (m.uid != null) memberIdentifiers.add(m.uid!);
       if (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) {
-        memberIdentifiers.add(m.phoneNumber!);
+        memberIdentifiers.add(normalisePhone(m.phoneNumber!));
       }
     }
 

@@ -1663,9 +1663,17 @@ class _MiniBalance extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.black38, fontSize: 9, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+        Text(
+          label, 
+          style: const TextStyle(color: Colors.black38, fontSize: 9, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+          overflow: TextOverflow.ellipsis,
+        ),
         const SizedBox(height: 4),
-        Text(amount, style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w700)),
+        Text(
+          amount, 
+          style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w700),
+          overflow: TextOverflow.ellipsis,
+        ),
       ],
     );
   }
