@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bharat Dues — Launch Video Preview</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #0B132B;
+        color: #FFFFFF;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px 20px;
+      }
+      .container {
+        width: 100%;
+        max-width: 1080px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 24px;
+      }
+      .header {
+        text-align: center;
+        margin-bottom: 8px;
+      }
+      .badge {
+        display: inline-block;
+        padding: 6px 16px;
+        border-radius: 999px;
+        background: rgba(0, 185, 241, 0.15);
+        color: #00B9F1;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+        border: 1px solid rgba(0, 185, 241, 0.3);
+      }
+      h1 {
+        font-size: 36px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin-bottom: 8px;
+      }
+      p.subtitle {
+        color: #94A3B8;
+        font-size: 18px;
+      }
+      .video-wrapper {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        background: #000000;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 30px 60px -15px rgba(0, 185, 241, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1);
+        position: relative;
+      }
+      video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .actions {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        justify-content: center;
+        width: 100%;
+      }
+      .btn {
+        padding: 14px 28px;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 700;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        transition: transform 0.15s ease, opacity 0.15s ease;
+      }
+      .btn:hover {
+        transform: translateY(-2px);
+      }
+      .btn-primary {
+        background: #00B9F1;
+        color: #002E6E;
+        border: none;
+      }
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.08);
+        color: #FFFFFF;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+      }
+      .share-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 24px;
+        width: 100%;
+        margin-top: 12px;
+      }
+      .share-card h3 {
+        font-size: 16px;
+        text-transform: uppercase;
+        color: #00B9F1;
+        letter-spacing: 0.05em;
+        margin-bottom: 12px;
+      }
+      .share-card p {
+        font-size: 17px;
+        line-height: 1.6;
+        color: #E2E8F0;
+        background: rgba(0, 0, 0, 0.25);
+        padding: 16px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <span class="badge">🚀 Launch Video Ready</span>
+        <h1>Bharat Dues</h1>
+        <p class="subtitle">Split Bills, Settle Beautifully • 20s Launch Reel</p>
+      </div>
+
+      <div class="video-wrapper">
+        <video controls autoplay loop playsinline poster="brag.jpg" src="brag.mp4">
+          Your browser does not support the video tag.
+        </video>
+      </div>
+
+      <div class="actions">
+        <a class="btn btn-primary" href="brag.mp4" download="bharat-dues-launch.mp4">
+          ⬇ Download Video (MP4)
+        </a>
+        <a class="btn btn-secondary" href="http://127.0.0.1:3002/#project/composition" target="_blank">
+          🎛 Open in HyperFrames Studio
+        </a>
+      </div>
+
+      <div class="share-card">
+        <h3>Suggested Share Copy (X / LinkedIn / Discord)</h3>
+        <p id="copy-text">Stop the awkward "bhai paise de de" group chat dance. Bharat Dues uses greedy algorithms to collapse 10 tangled trip debts into 2 clean payments—settleable in one tap via direct UPI. Split Bills, Settle Beautifully. 💸</p>
+      </div>
+    </div>
+  </body>
+</html>
