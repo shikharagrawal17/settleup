@@ -54,6 +54,8 @@ class Expense {
     required this.createdAt,
     required this.createdBy,
     this.category,
+    this.currency = 'INR',
+    this.baseAmount,
   });
 
   final String id;
@@ -64,6 +66,11 @@ class Expense {
   final DateTime createdAt;
   final String createdBy;
   final ExpenseCategory? category;
+  final String currency;
+  final double? baseAmount;
+
+  /// Returns the amount used for balance calculations.
+  double get effectiveAmount => baseAmount ?? amount;
 
   /// Returns the resolved category — stored or auto-detected.
   ExpenseCategory get resolvedCategory =>
@@ -77,6 +84,8 @@ class Expense {
       'shares': shares,
       'createdAt': Timestamp.fromDate(createdAt),
       'createdBy': createdBy,
+      'currency': currency,
+      if (baseAmount != null) 'baseAmount': baseAmount,
       if (category != null) 'category': category!.name,
     };
   }
@@ -112,6 +121,8 @@ class Expense {
       createdAt: createdAt,
       createdBy: json['createdBy'] as String? ?? '',
       category: category,
+      currency: json['currency'] as String? ?? 'INR',
+      baseAmount: (json['baseAmount'] as num?)?.toDouble(),
     );
   }
 }

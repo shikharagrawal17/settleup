@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -13,6 +14,7 @@ import '../providers/app_state.dart';
 import '../utils/settlement_helper.dart';
 import '../widgets/app_shell_widgets.dart';
 import '../widgets/member_management_widgets.dart'; // New shared widgets
+import '../utils/report_helper.dart';
 import 'contact_picker_screen.dart';
 
 
@@ -39,11 +41,13 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
   late final TextEditingController _nameController;
   late final List<MemberDraft> _members;
   late final Map<String, double> _balances;
+  late String _selectedCurrency;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.group.name);
+    _selectedCurrency = widget.group.currency;
     _balances = computeMemberBalances(
       members: widget.group.members,
       expenses: widget.expenses,
@@ -73,8 +77,8 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
     if (!_canRemove(draft.id)) {
       final balance = _balances[draft.id] ?? 0.0;
       final msg = balance > 0
-          ? '${draft.nameController.text} is owed ₹${formatAmount(balance)}. Settle up first.'
-          : '${draft.nameController.text} owes ₹${formatAmount(balance.abs())}. Settle up first.';
+          ? '${draft.nameController.text} is owed ${getCurrencySymbol(_selectedCurrency)}${formatAmount(balance)}. Settle up first.'
+          : '${draft.nameController.text} owes ${getCurrencySymbol(_selectedCurrency)}${formatAmount(balance.abs())}. Settle up first.';
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       return;
@@ -149,6 +153,12 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
   void _addManualMember() => _openMemberSheet(null);
 
   Future<void> _importContacts() async {
+    if (kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Contact importing is only available on mobile devices.')),
+      );
+      return;
+    }
     final imported = await Navigator.of(context).push<List<GroupMember>>(
       MaterialPageRoute(builder: (_) => const ContactPickerScreen()),
     );
@@ -240,7 +250,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
     final name = _nameController.text.trim();
     // Use production domain for cross-platform link stability
     const baseUrl = 'https://bharat-dues.web.app';
-    final joinUrl = '$baseUrl/#/?join=${widget.group.id}';
+    final joinUrl = '$baseUrl/?join=${widget.group.id}';
     
     final text = 'Hey, join our group "$name" on Bharat Dues to track our expenses together!\n\n'
                 'Click here to join: $joinUrl'; 
@@ -256,8 +266,14 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
         .where((m) => m.name.trim().isNotEmpty)
         .toList();
 
-    if (newName != widget.group.name) {
-      await appState.updateGroupName(groupId: widget.group.id, name: newName);
+    if (newName != widget.group.name || _selectedCurrency != widget.group.currency) {
+      await appState.updateGroup(
+        groupId: widget.group.id, 
+        updates: {
+          'name': newName,
+          'currency': _selectedCurrency,
+        },
+      );
     }
 
     String? newCreatorId;
@@ -277,39 +293,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
   }
 
   void _exportCsv() {
-    final buffer = StringBuffer();
-    final members = widget.group.members;
-    
-    // Header
-    final header = [
-      'Date',
-      'Description',
-      'Category',
-      'Payer',
-      'Total Amount',
-      ...members.map((m) => '${m.name} (Share)'),
-    ];
-    buffer.writeln(header.map((v) => '"$v"').join(','));
-
-    for (final e in widget.expenses) {
-      final payer = members.firstWhere(
-        (m) => m.id == e.payerId, 
-        orElse: () => GroupMember(id: '', name: 'Unknown'),
-      );
-      final date = "${e.createdAt.day}/${e.createdAt.month}/${e.createdAt.year}";
-      
-      final row = [
-        date,
-        e.description,
-        e.resolvedCategory.label,
-        payer.name,
-        formatAmount(e.amount),
-        ...members.map((m) => formatAmount(e.shares[m.id] ?? 0.0)),
-      ];
-      buffer.writeln(row.map((v) => '"$v"').join(','));
-    }
-
-    Share.share(buffer.toString(), subject: '${widget.group.name} Expenses Report');
+    ReportHelper.exportToCsv(widget.group, widget.expenses);
   }
 
   @override
@@ -344,6 +328,22 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                           validator: (v) => (v ?? '').trim().isEmpty ? 'Enter a name' : null,
                         ),
                         const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          initialValue: _selectedCurrency,
+                          decoration: const InputDecoration(
+                            labelText: 'Group Base Currency',
+                            prefixIcon: Icon(Icons.currency_exchange_outlined),
+                          ),
+                          items: ['INR', 'USD', 'EUR', 'GBP', 'JPY']
+                              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                              .toList(),
+                          onChanged: (v) {
+                            if (v != null) {
+                              setState(() => _selectedCurrency = v);
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 16),
                         Row(
                           children: [
                             Expanded(
@@ -353,14 +353,16 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                                 label: const Text('Add Member'),
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: _importContacts,
-                                icon: const Icon(Icons.contacts_outlined, size: 18),
-                                label: const Text('Import Friends'),
+                            if (!kIsWeb) ...[
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _importContacts,
+                                  icon: const Icon(Icons.contacts_outlined, size: 18),
+                                  label: const Text('Import Friends'),
+                                ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                       ],
@@ -387,7 +389,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                           onRemove: () => _removeMember(index),
                           trailing: balance != 0
                               ? Text(
-                                  balance > 0 ? '+₹${formatAmount(balance)}' : '−₹${formatAmount(balance.abs())}',
+                                  balance > 0 ? '+${getCurrencySymbol(_selectedCurrency)}${formatAmount(balance)}' : '−${getCurrencySymbol(_selectedCurrency)}${formatAmount(balance.abs())}',
                                   style: TextStyle(
                                     color: balance > 0 ? const Color(0xFF00897B) : Colors.red.shade700,
                                     fontWeight: FontWeight.w700,

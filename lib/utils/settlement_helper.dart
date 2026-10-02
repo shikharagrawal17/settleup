@@ -50,9 +50,9 @@ Map<String, double> buildPercentageShareMap({
     assignedCents += shareCents;
   }
 
-  // Fix rounding error if the sum of percentages is very close to 100.
+  // Fix rounding error if the sum of percentages is close to 100 (handles integer 33% + 33% + 33% = 99%).
   final totalPct = percentages.values.fold<double>(0.0, (sum, v) => sum + v);
-  if (members.isNotEmpty && (totalPct - 100.0).abs() < 0.05) {
+  if (members.isNotEmpty && (totalPct - 100.0).abs() <= 1.05) {
     if (assignedCents != totalCents) {
       final lastId = members.last.id;
       final currentLastCents = (result[lastId]! * 100).round();
@@ -110,10 +110,16 @@ Map<String, double> computeMemberBalances({
 
   // Expenses: payer credited, each share debited.
   for (final expense in expenses) {
+    final scale = (expense.baseAmount != null && expense.amount > 0) 
+        ? (expense.baseAmount! / expense.amount) 
+        : 1.0;
+        
+    final effectiveAmount = expense.baseAmount ?? expense.amount;
+
     balances[expense.payerId] =
-        (balances[expense.payerId] ?? 0.0) + expense.amount;
+        (balances[expense.payerId] ?? 0.0) + effectiveAmount;
     for (final entry in expense.shares.entries) {
-      balances[entry.key] = (balances[entry.key] ?? 0.0) - entry.value;
+      balances[entry.key] = (balances[entry.key] ?? 0.0) - (entry.value * scale);
     }
   }
 
@@ -150,7 +156,7 @@ List<SettlementTransaction> simplifyTransactions({
   }
   balances[payerId] = (balances[payerId] ?? 0.0) + totalAmount;
 
-  return _settleBalances(members, balances);
+  return settleBalances(members, balances);
 }
 
 /// Simplifies multiple expenses across a group into the minimum set of transfers.
@@ -168,14 +174,52 @@ List<SettlementTransaction> simplifyMultipleExpenses({
   }
 
   for (final expense in expenses) {
+    final scale = (expense.baseAmount != null && expense.amount > 0)
+        ? (expense.baseAmount! / expense.amount)
+        : 1.0;
+    final effectiveAmount = expense.baseAmount ?? expense.amount;
+
     balances[expense.payerId] =
-        (balances[expense.payerId] ?? 0.0) + expense.amount;
+        (balances[expense.payerId] ?? 0.0) + effectiveAmount;
     for (final entry in expense.shares.entries) {
-      balances[entry.key] = (balances[entry.key] ?? 0.0) - entry.value;
+      balances[entry.key] =
+          (balances[entry.key] ?? 0.0) - (entry.value * scale);
     }
   }
 
-  return _settleBalances(members, balances);
+  return settleBalances(members, balances);
+}
+
+/// Given a set of accounting IDs belonging to the current user within a group
+/// and the group's simplified transactions, computes bilateral net debt with each other member.
+/// Positive value = friend owes user money.
+/// Negative value = user owes friend money.
+Map<String, double> computePairwiseBilateralDebts({
+  required Set<String> myMemberIds,
+  required List<SettlementTransaction> transactions,
+}) {
+  final Map<String, double> bilateralDebts = {};
+
+  for (final tx in transactions) {
+    final bool fromIsMe = myMemberIds.contains(tx.fromMemberId);
+    final bool toIsMe = myMemberIds.contains(tx.toMemberId);
+
+    if (fromIsMe && toIsMe) {
+      continue; // Internal transfer between user's own linked identities
+    }
+
+    if (fromIsMe) {
+      // User owes 'toMemberId' this amount
+      bilateralDebts[tx.toMemberId] =
+          (bilateralDebts[tx.toMemberId] ?? 0.0) - tx.amount;
+    } else if (toIsMe) {
+      // 'fromMemberId' owes user this amount
+      bilateralDebts[tx.fromMemberId] =
+          (bilateralDebts[tx.fromMemberId] ?? 0.0) + tx.amount;
+    }
+  }
+
+  return bilateralDebts;
 }
 
 /// Simplifies expenses minus already-settled amounts.
@@ -190,10 +234,10 @@ List<SettlementTransaction> simplifyWithSettlements({
     settlements: settlements,
   );
 
-  return _settleBalances(members, balances);
+  return settleBalances(members, balances);
 }
 
-List<SettlementTransaction> _settleBalances(
+List<SettlementTransaction> settleBalances(
   List<GroupMember> members,
   Map<String, double> balances,
 ) {
@@ -272,4 +316,21 @@ String formatAmount(double amount) {
     s = s.replaceAll(RegExp(r'\.$'), '');
   }
   return s;
+}
+
+String getCurrencySymbol(String currencyCode) {
+  switch (currencyCode.toUpperCase()) {
+    case 'INR':
+      return '₹';
+    case 'USD':
+      return '\$';
+    case 'EUR':
+      return '€';
+    case 'GBP':
+      return '£';
+    case 'JPY':
+      return '¥';
+    default:
+      return currencyCode;
+  }
 }

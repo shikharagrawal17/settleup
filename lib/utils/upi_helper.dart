@@ -12,7 +12,8 @@ String generateUpiLink({
   required double amount,
 }) {
   final encodedName = Uri.encodeComponent(payeeName);
-  return 'upi://pay?pa=$upiId&pn=$encodedName&am=$amount&cu=INR';
+  final formattedAmount = amount.toStringAsFixed(2);
+  return 'upi://pay?pa=$upiId&pn=$encodedName&am=$formattedAmount&cu=INR';
 }
 
 String buildSettlementShareMessage({

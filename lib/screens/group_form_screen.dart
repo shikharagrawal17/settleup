@@ -1,10 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/group_member.dart';
-import '../models/user_profile.dart';
 import '../providers/app_state.dart';
 import '../widgets/app_shell_widgets.dart';
 import '../widgets/member_management_widgets.dart'; // New shared widgets
@@ -72,6 +72,12 @@ class _GroupFormScreenState extends State<GroupFormScreen> {
   }
 
   Future<void> _importContacts() async {
+    if (kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Contact importing is only available on mobile devices.')),
+      );
+      return;
+    }
     final imported = await Navigator.of(context).push<List<GroupMember>>(
       MaterialPageRoute(builder: (_) => const ContactPickerScreen()),
     );
@@ -231,14 +237,16 @@ class _GroupFormScreenState extends State<GroupFormScreen> {
                                 label: const Text('Add Member'),
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: _importContacts,
-                                icon: const Icon(Icons.contacts_outlined, size: 18),
-                                label: const Text('Import Friends'),
+                            if (!kIsWeb) ...[
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _importContacts,
+                                  icon: const Icon(Icons.contacts_outlined, size: 18),
+                                  label: const Text('Import Friends'),
+                                ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                       ],

@@ -7,6 +7,9 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../utils/currency_helper.dart';
+import '../utils/ocr_helper.dart';
+import '../utils/report_helper.dart';
 import '../models/expense.dart';
 import '../models/group_member.dart';
 import '../models/settlement_group.dart';
@@ -59,6 +62,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
   bool _flagHandled = false;
+  double? _convertedAmount;
 
   @override
   void initState() {
@@ -69,6 +73,16 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AppState>().syncGroupMembers(_group.id, widget.profile);
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant GroupSettlementScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.group != oldWidget.group) {
+      setState(() {
+        _group = widget.group;
+      });
+    }
   }
 
   void _shareGroupInvite() {
@@ -126,12 +140,13 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
              const SizedBox(height: 12),
              Flexible(
                child: _SettleTab(
-                  memberMap: memberMap,
+                 memberMap: memberMap,
                  transactions: transactions,
                  currentUserId: currentMemberId,
-                onPay: (t) => _launchUpi(t, appState),
+                 onPay: (t) => _launchUpi(t, appState),
                  onRecord: (t) => _openRecordSettlement(appState, t, resolvedMembers),
                  onRemind: _sendWhatsappReminder,
+                 currency: _group.currency,
                ),
              ),
            ],
@@ -140,53 +155,11 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
      );
   }
 
-  void _openBalancesSheet(
-    BuildContext context,
-    Map<String, double> balances,
-    List<SettlementTransaction> transactions,
-    List<GroupMember> resolvedMembers, {
-    required String currentMemberId,
-  }) {
-     showModalBottomSheet<void>(
-       context: context,
-       isScrollControlled: true,
-       backgroundColor: Colors.transparent,
-       useSafeArea: true,
-       builder: (c) => Container(
-         decoration: const BoxDecoration(
-           color: Colors.white,
-           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-         ),
-         child: Column(
-           mainAxisSize: MainAxisSize.min,
-           children: [
-             const SizedBox(height: 8),
-             Container(
-               height: 5,
-               width: 40,
-               decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(10)),
-             ),
-             const SizedBox(height: 16),
-             Flexible(
-               child: _BalancesTab(
-                 resolvedMembers: resolvedMembers,
-                 balances: balances,
-                 currentUserId: currentMemberId,
-                 transactions: transactions,
-               ),
-             ),
-           ],
-         ),
-       ),
-     );
-  }
-
-  List<GroupMember> _resolveAll(List<GroupMember> groupMembers, Map<String, UserProfile> liveProfiles) {
-    final appState = context.read<AppState>();
+  List<GroupMember> _resolveAll(List<GroupMember> groupMembers, Map<String, UserProfile> liveProfiles, AppState appState) {
     final List<GroupMember> resolved = groupMembers.map<GroupMember>((member) {
       // Try to find live profile by UID first, then by ID, then by normalized phone number
       UserProfile? live = liveProfiles[member.uid ?? ''];
-      if (live == null) live = liveProfiles[member.id];
+      live ??= liveProfiles[member.id];
       if (live == null && member.phoneNumber != null) {
         live = liveProfiles[AppState.normalisePhone(member.phoneNumber!)];
       }
@@ -283,8 +256,8 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                   shape: BoxShape.circle,
                   border: Border.all(color: kPrimaryBlue.withValues(alpha: 0.2), width: 2),
                 ),
-                child: const Center(
-                  child: Text('₹', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: kPrimaryBlue)),
+                child: Center(
+                  child: Text(getCurrencySymbol(_group.currency), style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: kPrimaryBlue)),
                 ),
               ),
               const SizedBox(height: 24),
@@ -304,7 +277,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Amount to Pay', style: TextStyle(color: Colors.black38, fontSize: 13)),
-                        Text('₹${formatAmount(transaction.amount)}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 22, color: kPrimaryBlue)),
+                        Text('${getCurrencySymbol(_group.currency)}${formatAmount(transaction.amount)}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 22, color: kPrimaryBlue)),
                       ],
                     ),
                     const Padding(
@@ -405,19 +378,13 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
     );
   }
 
-  void _share(List<SettlementTransaction> transactions) {
-    final message = buildSettlementShareMessage(
-      groupName: _group.name,
-      transactions: transactions,
-    );
-    Share.share(message, subject: '${_group.name} settlement');
-  }
+
 
   Future<void> _sendWhatsappNotifyPayee(SettlementTransaction transaction) async {
     final phone = transaction.payeePhoneNumber;
     if (phone == null || phone.isEmpty) return;
     
-    final message = "Hey ${transaction.toName}, I've just recorded a payment of ₹${formatAmount(transaction.amount)} for '${_group.name}' on Bharat Dues. Please confirm it! 💸";
+    final message = "Hey ${transaction.toName}, I've just recorded a payment of ${getCurrencySymbol(_group.currency)}${formatAmount(transaction.amount)} for '${_group.name}' on Bharat Dues. Please confirm it! 💸";
     final url = Uri.parse('whatsapp://send?phone=$phone&text=${Uri.encodeComponent(message)}');
     
     try {
@@ -442,7 +409,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
       return;
     }
     
-    final message = "Hey ${transaction.fromName}, just a quick reminder to settle up ₹${formatAmount(transaction.amount)} for '${_group.name}' on Bharat Dues! ${transaction.payeeUpiId != null ? 'My UPI is ${transaction.payeeUpiId}. ' : ''}Thanks 💸";
+    final message = "Hey ${transaction.fromName}, just a quick reminder to settle up ${getCurrencySymbol(_group.currency)}${formatAmount(transaction.amount)} for '${_group.name}' on Bharat Dues! ${transaction.payeeUpiId != null ? 'My UPI is ${transaction.payeeUpiId}. ' : ''}Thanks 💸";
     final url = Uri.parse('whatsapp://send?phone=$phone&text=${Uri.encodeComponent(message)}');
     
     try {
@@ -483,6 +450,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
   // ─── Add expense bottom sheet ─────────────────────────────────────────
 
   Future<void> _openAddEditExpense(AppState appState, List<GroupMember> resolvedMembers, {Expense? initialExpense}) async {
+    _convertedAmount = initialExpense?.baseAmount;
     final descCtrl = TextEditingController(text: initialExpense?.description ?? '');
     final amountCtrl = TextEditingController(text: (initialExpense?.amount ?? 0) > 0 ? formatAmount(initialExpense!.amount) : '');
     final formKey = GlobalKey<FormState>();
@@ -509,8 +477,18 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
     final multControllers = {
       for (final m in resolvedMembers) m.id: TextEditingController(text: '1'),
     };
+
+    final initialTotal = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
+    if (initialExpense == null && initialTotal > 0 && splitMode == SplitMode.equal) {
+      final initialShares = buildEqualShareMap(total: initialTotal, members: resolvedMembers);
+      for (final m in resolvedMembers) {
+        shareControllers[m.id]!.text = formatAmount(initialShares[m.id] ?? 0.0);
+      }
+    }
+
     ExpenseCategory selectedCategory = initialExpense?.category ?? ExpenseCategory.other;
     bool isCategoryManual = initialExpense != null;
+    String selectedCurrency = initialExpense?.currency ?? _group.currency;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -519,45 +497,56 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
+            
+            Future<void> runConversion() async {
+              final val = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
+              if (val > 0 && selectedCurrency != _group.currency) {
+                final result = await CurrencyHelper.convert(
+                  amount: val,
+                  from: selectedCurrency,
+                  to: _group.currency,
+                );
+                setSheetState(() => _convertedAmount = result);
+              } else {
+                setSheetState(() => _convertedAmount = null);
+              }
+            }
+
             void recomputeShares() {
               final total = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
-              if (total == 0) return;
-
               final includedMembers = resolvedMembers.where((m) => includedIds.contains(m.id)).toList();
 
-              switch (splitMode) {
-                case SplitMode.equal:
-                  final shares = buildEqualShareMap(total: total, members: includedMembers);
-                  for (final m in resolvedMembers) {
-                    shareControllers[m.id]!.text = formatAmount(shares[m.id] ?? 0.0);
-                  }
-                case SplitMode.percentage:
-                  final pcts = <String, double>{};
-                  for (final m in includedMembers) {
-                    pcts[m.id] = double.tryParse(pctControllers[m.id]!.text.trim()) ?? 0;
-                  }
-                  final shares = buildPercentageShareMap(total: total, members: includedMembers, percentages: pcts);
-                  for (final m in resolvedMembers) {
-                    shareControllers[m.id]!.text = formatAmount(shares[m.id] ?? 0.0);
-                  }
-                case SplitMode.shares:
-                  final mults = <String, double>{};
-                  for (final m in includedMembers) {
-                    mults[m.id] = double.tryParse(multControllers[m.id]!.text.trim()) ?? 1.0;
-                  }
-                  final shares = buildMultiplierShareMap(total: total, members: includedMembers, multipliers: mults);
-                  for (final m in resolvedMembers) {
-                    shareControllers[m.id]!.text = formatAmount(shares[m.id] ?? 0.0);
-                  }
-                case SplitMode.exact:
-                  break; 
+              if (total > 0 && includedMembers.isNotEmpty) {
+                switch (splitMode) {
+                  case SplitMode.equal:
+                    final shares = buildEqualShareMap(total: total, members: includedMembers);
+                    for (final m in resolvedMembers) {
+                      shareControllers[m.id]!.text = formatAmount(shares[m.id] ?? 0.0);
+                    }
+                  case SplitMode.percentage:
+                    final pcts = <String, double>{};
+                    for (final m in includedMembers) {
+                      pcts[m.id] = double.tryParse(pctControllers[m.id]!.text.trim()) ?? 0;
+                    }
+                    final shares = buildPercentageShareMap(total: total, members: includedMembers, percentages: pcts);
+                    for (final m in resolvedMembers) {
+                      shareControllers[m.id]!.text = formatAmount(shares[m.id] ?? 0.0);
+                    }
+                  case SplitMode.shares:
+                    final mults = <String, double>{};
+                    for (final m in includedMembers) {
+                      mults[m.id] = double.tryParse(multControllers[m.id]!.text.trim()) ?? 1.0;
+                    }
+                    final shares = buildMultiplierShareMap(total: total, members: includedMembers, multipliers: mults);
+                    for (final m in resolvedMembers) {
+                      shareControllers[m.id]!.text = formatAmount(shares[m.id] ?? 0.0);
+                    }
+                  case SplitMode.exact:
+                    break; 
+                }
               }
               // Force rebuild so the 'diff' and 'sumOfShares' reflect the new calculation
               setSheetState(() {});
-            }
-
-            if (splitMode != SplitMode.exact) {
-              recomputeShares();
             }
 
             final totalExpense = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
@@ -598,18 +587,40 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                       TextFormField(
                         controller: descCtrl,
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Description',
                           hintText: 'Dinner, Groceries, Rent...',
-                          hintStyle: TextStyle(color: Colors.grey, fontWeight: FontWeight.normal),
+                          hintStyle: const TextStyle(color: Colors.grey, fontWeight: FontWeight.normal),
                           floatingLabelBehavior: FloatingLabelBehavior.always,
+                          suffixIcon: kIsWeb
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.document_scanner_outlined, color: kPrimaryBlue),
+                                  tooltip: 'Scan Receipt',
+                                  onPressed: () async {
+                                    final result = await OcrHelper.scanReceipt();
+                                    if (result != null) {
+                                      setSheetState(() {
+                                        if (result.description != null) descCtrl.text = result.description!;
+                                        if (result.amount != null) amountCtrl.text = formatAmount(result.amount!);
+                                        selectedCategory = ExpenseCategory.detect(descCtrl.text);
+                                        recomputeShares();
+                                      });
+                                    }
+                                  },
+                                ),
                         ),
                         onChanged: (v) => setSheetState(() {
                           if (!isCategoryManual) {
                             selectedCategory = ExpenseCategory.detect(v);
                           }
                         }),
-                        validator: (v) => (v ?? '').trim().isEmpty ? 'Required' : null,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Please enter a description';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 12),
                       // Modern Category Selector
@@ -650,30 +661,69 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                         ),
                         child: Column(
                           children: [
-                            TextFormField(
-                              controller: amountCtrl,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: kPrimaryBlue),
-                              decoration: const InputDecoration(
-                                labelText: 'Total Amount',
-                                prefixText: '₹ ',
-                                alignLabelWithHint: true,
-                                border: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                floatingLabelBehavior: FloatingLabelBehavior.always,
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                              onChanged: (_) => setSheetState(() {
-                                if (splitMode != SplitMode.exact) recomputeShares();
-                              }),
-                              validator: (v) {
-                                final val = double.tryParse((v ?? '').trim());
-                                return (val == null || val <= 0) ? '!' : null;
-                              },
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                SizedBox(
+                                  width: 80,
+                                  child: DropdownButtonFormField<String>(
+                                    initialValue: selectedCurrency,
+                                    isExpanded: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Curr',
+                                      border: InputBorder.none,
+                                      enabledBorder: InputBorder.none,
+                                      focusedBorder: InputBorder.none,
+                                      contentPadding: EdgeInsets.zero,
+                                    ),
+                                    items: ['INR', 'USD', 'EUR', 'GBP', 'JPY']
+                                        .map((c) => DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(fontSize: 14))))
+                                        .toList(),
+                                    onChanged: (v) async {
+                                      if (v != null) {
+                                        setSheetState(() => selectedCurrency = v);
+                                        await runConversion();
+                                      }
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: amountCtrl,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: kPrimaryBlue),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Total Amount',
+                                      alignLabelWithHint: true,
+                                      border: InputBorder.none,
+                                      enabledBorder: InputBorder.none,
+                                      focusedBorder: InputBorder.none,
+                                      floatingLabelBehavior: FloatingLabelBehavior.always,
+                                      contentPadding: EdgeInsets.zero,
+                                    ),
+                                    onChanged: (_) async {
+                                      await runConversion();
+                                      if (splitMode != SplitMode.exact) recomputeShares();
+                                    },
+                                    validator: (v) {
+                                      final val = double.tryParse((v ?? '').trim());
+                                      return (val == null || val <= 0) ? '!' : null;
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
+                            if (_convertedAmount != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Text(
+                                  '≈ ${getCurrencySymbol(_group.currency)}${formatAmount(_convertedAmount!)} (Base: ${_group.currency})',
+                                  style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w600),
+                                ),
+                              ),
                             const Divider(height: 32, color: Colors.black12),
                             DropdownButtonFormField<String>(
                               initialValue: payerId,
@@ -729,8 +779,18 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                       if (total > 0 && included.isNotEmpty) {
                                         if (m == SplitMode.percentage) {
                                           final even = 100 / included.length;
+                                          double allocated = 0;
+                                          for (var i = 0; i < included.length; i++) {
+                                            final mem = included[i];
+                                            final isLast = i == included.length - 1;
+                                            final pctVal = isLast ? (100 - allocated) : even.roundToDouble();
+                                            allocated += pctVal;
+                                            pctControllers[mem.id]!.text = pctVal.toInt().toString();
+                                          }
                                           for (final mem in resolvedMembers) {
-                                            pctControllers[mem.id]!.text = included.contains(mem) ? even.toStringAsFixed(0) : '0';
+                                            if (!included.contains(mem)) {
+                                              pctControllers[mem.id]!.text = '0';
+                                            }
                                           }
                                         } else if (m == SplitMode.exact) {
                                           final perPerson = total / included.length;
@@ -828,26 +888,36 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                     const SizedBox(width: 12),
                                   ],
                                   SizedBox(
-                                    width: 75,
-                                    child: TextFormField(
-                                      controller: shareControllers[m.id],
-                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                                      enabled: isIncluded && splitMode == SplitMode.exact,
-                                      textAlign: TextAlign.right,
-                                      style: TextStyle(
-                                        fontSize: 16, 
-                                        fontWeight: FontWeight.w700, 
-                                        color: isIncluded ? kDarkBlue : Colors.black12
-                                      ),
-                                      decoration: InputDecoration(
-                                        prefixText: '₹ ',
-                                        prefixStyle: const TextStyle(fontSize: 11, color: Colors.black38),
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.zero,
-                                        border: InputBorder.none,
-                                      ),
-                                      onChanged: (_) => setSheetState(() {}),
+                                    width: 100,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        TextFormField(
+                                          controller: shareControllers[m.id],
+                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                                          enabled: isIncluded && splitMode == SplitMode.exact,
+                                          textAlign: TextAlign.right,
+                                          style: TextStyle(
+                                            fontSize: 16, 
+                                            fontWeight: FontWeight.w700, 
+                                            color: isIncluded ? kDarkBlue : Colors.black12
+                                          ),
+                                          decoration: InputDecoration(
+                                            prefixText: '${getCurrencySymbol(selectedCurrency)} ',
+                                            prefixStyle: const TextStyle(fontSize: 11, color: Colors.black38),
+                                            isDense: true,
+                                            contentPadding: EdgeInsets.zero,
+                                            border: InputBorder.none,
+                                          ),
+                                          onChanged: (_) => setSheetState(() {}),
+                                        ),
+                                        if (isIncluded && selectedCurrency != _group.currency && _convertedAmount != null && (double.tryParse(amountCtrl.text) ?? 0) > 0)
+                                          Text(
+                                            '≈ ${getCurrencySymbol(_group.currency)}${formatAmount((double.tryParse(shareControllers[m.id]!.text) ?? 0) * (_convertedAmount! / (double.tryParse(amountCtrl.text) ?? 1)))}',
+                                            style: TextStyle(fontSize: 10, color: Colors.black.withValues(alpha: 0.4), fontWeight: FontWeight.w500),
+                                          ),
+                                      ],
                                     ),
                                   ),
                                 ],
@@ -885,7 +955,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                       ? 'Total amount is fully split and accounted for.' 
                                       : (splitMode == SplitMode.percentage 
                                           ? 'Remaining: ${diffPct.toStringAsFixed(1)}%' 
-                                          : 'Remaining: ₹${formatAmount(diff)}'),
+                                          : 'Remaining: ${getCurrencySymbol(selectedCurrency)}${formatAmount(diff)}'),
                                     style: TextStyle(
                                       color: isBalanced ? kDarkBlue : Colors.redAccent,
                                       fontWeight: FontWeight.w600,
@@ -901,7 +971,18 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                               ),
                               onPressed: () async {
-                                if (!formKey.currentState!.validate()) return;
+                                if (!formKey.currentState!.validate()) {
+                                  if (descCtrl.text.trim().isEmpty) {
+                                    ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Please enter an expense description'),
+                                        backgroundColor: Colors.redAccent,
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                  return;
+                                }
                                 final currentTotal = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
                                 final currentSum = shareControllers.values.fold<double>(0, (sum, ctrl) => sum + (double.tryParse(ctrl.text.trim()) ?? 0.0));
                                 
@@ -910,7 +991,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                     SnackBar(
                                       behavior: SnackBarBehavior.floating,
                                       backgroundColor: Colors.redAccent,
-                                      content: Text('Total (₹${formatAmount(currentTotal)}) ≠ Shares (₹${formatAmount(currentSum)})', style: const TextStyle(fontWeight: FontWeight.w600)),
+                                      content: Text('Total (${getCurrencySymbol(_group.currency)}${formatAmount(currentTotal)}) ≠ Shares (${getCurrencySymbol(_group.currency)}${formatAmount(currentSum)})', style: const TextStyle(fontWeight: FontWeight.w600)),
                                     ),
                                   );
                                   return;
@@ -926,8 +1007,10 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                   shares: shares,
                                   createdAt: initialExpense?.createdAt ?? DateTime.now(),
                                   createdBy: initialExpense?.createdBy ?? widget.profile.uid,
-                                  category: selectedCategory,
-                                );
+                                   category: selectedCategory,
+                                   currency: selectedCurrency,
+                                   baseAmount: _convertedAmount,
+                                 );
 
                                 if (initialExpense == null) {
                                   await appState.addExpense(groupId: _group.id, expense: expense);
@@ -990,7 +1073,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                     TextFormField(
                       controller: amountCtrl,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
+                      decoration: InputDecoration(labelText: 'Amount', prefixText: '${getCurrencySymbol(_group.currency)} '),
                       validator: (v) {
                         final val = double.tryParse((v ?? '').trim());
                         if (val == null || val <= 0) return 'Enter a valid amount';
@@ -1029,23 +1112,24 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                             confirmed: isReceiver,
                           );
                           if (sheetContext.mounted) {
-                             Navigator.of(sheetContext).pop();
-                             if (!isReceiver) {
-                               ScaffoldMessenger.of(context).showSnackBar(
-                                 SnackBar(
-                                   content: const Text('Payment recorded!'),
-                                   action: transaction.payeePhoneNumber != null ? SnackBarAction(
-                                     label: 'Notify Receiver',
-                                     onPressed: () => _sendWhatsappNotifyPayee(transaction),
-                                   ) : null,
-                                 ),
-                               );
-                             } else {
-                               ScaffoldMessenger.of(context).showSnackBar(
-                                 const SnackBar(content: Text('Receipt confirmed!')),
-                               );
-                             }
-                           }
+                            Navigator.of(sheetContext).pop();
+                          }
+                          if (!mounted) return;
+                          if (!isReceiver) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text('Payment recorded!'),
+                                action: transaction.payeePhoneNumber != null ? SnackBarAction(
+                                  label: 'Notify Receiver',
+                                  onPressed: () => _sendWhatsappNotifyPayee(transaction),
+                                ) : null,
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Receipt confirmed!')),
+                            );
+                          }
                         },
                         child: Text(transaction.toMemberId == _currentMemberId(resolvedMembers) ? 'Confirm Receipt' : 'Record Payment'),
                       ),
@@ -1081,7 +1165,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
           ]),
           builder: (context, profilesSnap) {
             final profiles = profilesSnap.data ?? {};
-            final resolvedMembers = _resolveAll(_group.members, profiles);
+            final resolvedMembers = _resolveAll(_group.members, profiles, appState);
             final currentMemberId = _currentMemberId(resolvedMembers);
             
             // Build a smart member map that can resolve both by primary ID and secondary UID
@@ -1110,17 +1194,28 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                     if (setSnap.hasError) return _ErrorScaffold(error: setSnap.error);
                     final settlements = setSnap.data ?? const <SettlementRecord>[];
 
-                    final transactions = simplifyWithSettlements(
-                      members: resolvedMembers,
-                      expenses: expenses,
-                      settlements: settlements,
-                    );
-                    final balances = computeMemberBalances(
-                      members: resolvedMembers,
-                      expenses: expenses,
-                      settlements: settlements,
-                    );
-                    final totalSpent = expenses.fold<double>(0, (s, e) => s + e.amount);
+                    final isUnmigrated = _group.netBalances.isEmpty && (expenses.isNotEmpty || settlements.isNotEmpty);
+                    
+                    final balances = isUnmigrated
+                        ? computeMemberBalances(
+                            members: resolvedMembers,
+                            expenses: expenses,
+                            settlements: settlements,
+                          )
+                        : _group.netBalances;
+
+                    final transactions = settleBalances(resolvedMembers, balances);
+                    
+                    final totalSpent = isUnmigrated 
+                        ? expenses.fold<double>(0, (s, e) => s + e.amount)
+                        : _group.totalSpent;
+
+                    if (isUnmigrated && expenses.isNotEmpty) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        // Background migration
+                        appState.migrateGroupBalances(_group.id, balances, totalSpent);
+                      });
+                    }
 
                     final otherMember = resolvedMembers.firstWhere(
                       (m) => m.id != currentMemberId,
@@ -1179,6 +1274,37 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                             tooltip: 'Settings',
                           ),
                           IconButton(
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Export Report'),
+                                  content: const Text('Choose your preferred format:'),
+                                  actions: [
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        ReportHelper.exportToCsv(_group, expenses);
+                                      },
+                                      icon: const Icon(Icons.table_chart_outlined),
+                                      label: const Text('CSV'),
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        ReportHelper.exportToPdf(_group, expenses, settlements);
+                                      },
+                                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                                      label: const Text('PDF'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.download_outlined),
+                            tooltip: 'Export Report',
+                          ),
+                          IconButton(
                             onPressed: _shareGroupInvite,
                             icon: const Icon(Icons.share_outlined),
                             tooltip: 'Invite Friends',
@@ -1209,7 +1335,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            '₹${formatAmount(myGroupBalance.abs())}',
+                                            '${getCurrencySymbol(_group.currency)}${formatAmount(myGroupBalance.abs())}',
                                             style: TextStyle(
                                               fontSize: 32,
                                               fontWeight: FontWeight.w700,
@@ -1225,7 +1351,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                       if (!_group.isNonGroup)
                                         MetricPill(
                                           label: 'Total Spent',
-                                          value: '₹${formatAmount(totalSpent)}',
+                                          value: '${getCurrencySymbol(_group.currency)}${formatAmount(totalSpent)}',
                                         ),
                                     ],
                                   ),
@@ -1327,17 +1453,20 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                           onEditExpense: (e) => _openAddEditExpense(appState, resolvedMembers, initialExpense: e),
                                           appState: appState,
                                           groupId: _group.id,
+                                          currency: _group.currency,
                                         ),
                                         _ActivityLogTab(
                                           groupId: _group.id,
                                           pendingSettlements: settlements.where((s) => s.status != SettlementStatus.confirmed).toList(),
                                           resolvedMembers: resolvedMembers,
+                                          currency: _group.currency,
                                         ),
                                         _BalancesTab(
                                           resolvedMembers: resolvedMembers,
                                           balances: Map<String, double>.from(balances),
                                           currentUserId: currentMemberId,
                                           transactions: transactions,
+                                          currency: _group.currency,
                                         ),
                                       ],
                                     ),
@@ -1424,6 +1553,7 @@ class _ExpensesTab extends StatelessWidget {
     required this.appState,
     required this.groupId,
     required this.onEditExpense,
+    required this.currency,
   });
 
   final List<Expense> expenses;
@@ -1432,6 +1562,7 @@ class _ExpensesTab extends StatelessWidget {
   final AppState appState;
   final String groupId;
   final Function(Expense) onEditExpense;
+  final String currency;
 
   @override
   Widget build(BuildContext context) {
@@ -1522,6 +1653,7 @@ class _ExpensesTab extends StatelessWidget {
                     return _ExpenseActivityCard(
                       expense: expense,
                       memberMap: memberMap,
+                      currency: currency,
                       onDelete: () => showConfirmDelete(
                         context,
                         'Delete Expense',
@@ -1537,10 +1669,11 @@ class _ExpensesTab extends StatelessWidget {
                       groupId: groupId,
                       appState: appState,
                       memberMap: memberMap,
+                      currency: currency,
                       onDelete: () => showConfirmDelete(
                         context,
                         'Delete Settlement',
-                        'Are you sure you want to remove this payment of ₹${formatAmount(settlement.amount)}?',
+                        'Are you sure you want to remove this payment of ${getCurrencySymbol(currency)}${formatAmount(settlement.amount)}?',
                         () => appState.deleteSettlement(groupId: groupId, record: settlement),
                       ),
                     );
@@ -1562,11 +1695,13 @@ class _ActivityLogTab extends StatelessWidget {
     required this.groupId,
     required this.pendingSettlements,
     required this.resolvedMembers,
+    required this.currency,
   });
 
   final String groupId;
   final List<SettlementRecord> pendingSettlements;
   final List<GroupMember> resolvedMembers;
+  final String currency;
 
   @override
   Widget build(BuildContext context) {
@@ -1608,6 +1743,7 @@ class _ActivityLogTab extends StatelessWidget {
                  groupId: groupId, 
                  appState: appState, 
                  memberMap: memberMap, 
+                 currency: currency,
                  onDelete: () => appState.deleteSettlement(groupId: groupId, record: s),
                )),
                const SizedBox(height: 24),
@@ -1727,10 +1863,28 @@ class _ActivityLogItem extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _MiniAvatar(
-                  name: log.actorName, 
-                  photoUrl: log.actorPhotoUrl, 
-                  size: 36,
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    _MiniAvatar(
+                      name: log.actorName, 
+                      photoUrl: log.actorPhotoUrl, 
+                      size: 36,
+                    ),
+                    Positioned(
+                      right: -2,
+                      bottom: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        child: Icon(iconData, size: 10, color: Colors.white),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -1807,8 +1961,6 @@ class _ActivityLogItem extends StatelessWidget {
         return Icons.person_add_outlined;
       case ActivityAction.settlementDeleted:
         return Icons.delete_forever_outlined;
-      default:
-        return Icons.info_outline;
     }
   }
 
@@ -1834,8 +1986,6 @@ class _ActivityLogItem extends StatelessWidget {
         return const Color(0xFFF687B3);
       case ActivityAction.settlementDeleted:
         return Colors.redAccent;
-      default:
-        return Colors.black12;
     }
   }
 
@@ -1861,8 +2011,6 @@ class _ActivityLogItem extends StatelessWidget {
         return 'added member';
       case ActivityAction.settlementDeleted:
         return 'deleted';
-      default:
-        return 'performed';
     }
   }
 
@@ -1903,12 +2051,14 @@ class _ExpenseActivityCard extends StatefulWidget {
     required this.memberMap,
     required this.onDelete,
     required this.onEdit,
+    required this.currency,
   });
 
   final Expense expense;
   final Map<String, GroupMember> memberMap;
   final VoidCallback onDelete;
   final VoidCallback onEdit;
+  final String currency;
 
   @override
   State<_ExpenseActivityCard> createState() => _ExpenseActivityCardState();
@@ -1987,9 +2137,9 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                              payer?.id == FirebaseAuth.instance.currentUser?.uid
-                                 ? 'You paid ₹${formatAmount(widget.expense.amount)}'
-                                 : '$payerName paid ₹${formatAmount(widget.expense.amount)}',
+                              isMePayer
+                                 ? 'You paid ${getCurrencySymbol(widget.expense.currency)}${formatAmount(widget.expense.amount)}'
+                                 : '$payerName paid ${getCurrencySymbol(widget.expense.currency)}${formatAmount(widget.expense.amount)}',
                             style: const TextStyle(
                                 color: Colors.black45, fontSize: 12),
                           ),
@@ -2163,7 +2313,7 @@ class _ExpenseActivityCardState extends State<_ExpenseActivityCard> {
                                   ),
                                 ),
                               Text(
-                                '₹${formatAmount(entry.value)}',
+                                '${getCurrencySymbol(widget.expense.currency)}${formatAmount(entry.value)}',
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 13),
@@ -2193,6 +2343,7 @@ class _SettlementActivityCard extends StatelessWidget {
     required this.appState,
     required this.memberMap,
     required this.onDelete,
+    required this.currency,
   });
 
   final SettlementRecord settlement;
@@ -2200,6 +2351,7 @@ class _SettlementActivityCard extends StatelessWidget {
   final AppState appState;
   final Map<String, GroupMember> memberMap;
   final VoidCallback onDelete;
+  final String currency;
 
 
   @override
@@ -2261,7 +2413,7 @@ class _SettlementActivityCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${memberMap[settlement.fromMemberId]?.name ?? settlement.fromName} Paid ${memberMap[settlement.toMemberId]?.name ?? settlement.toName} ₹${formatAmount(settlement.amount)}',
+                        '${memberMap[settlement.fromMemberId]?.name ?? settlement.fromName} Paid ${memberMap[settlement.toMemberId]?.name ?? settlement.toName} ${getCurrencySymbol(currency)}${formatAmount(settlement.amount)}',
                         style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: -0.2),
                       ),
                       const SizedBox(height: 4),
@@ -2287,7 +2439,7 @@ class _SettlementActivityCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      '₹${formatAmount(settlement.amount)}',
+                      '${getCurrencySymbol(currency)}${formatAmount(settlement.amount)}',
                       style: TextStyle(
                         color: statusColor,
                         fontSize: 18,
@@ -2434,12 +2586,14 @@ class _BalancesTab extends StatelessWidget {
     required this.balances,
     required this.currentUserId,
     required this.transactions,
+    required this.currency,
   });
 
   final List<GroupMember> resolvedMembers;
   final Map<String, double> balances;
   final String currentUserId;
   final List<SettlementTransaction> transactions;
+  final String currency;
 
   @override
   Widget build(BuildContext context) {
@@ -2468,7 +2622,7 @@ class _BalancesTab extends StatelessWidget {
               if (myBalance != 0) ...[
                 const SizedBox(height: 6),
                 Text(
-                  '₹${formatAmount(myBalance.abs())}',
+                  '${getCurrencySymbol(currency)}${formatAmount(myBalance.abs())}',
                   style: Theme.of(context).textTheme.displaySmall?.copyWith(
                         color: myBalance > 0
                             ? const Color(0xFF4ADE80)
@@ -2538,7 +2692,7 @@ class _BalancesTab extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    balance == 0 ? '₹0' : '₹${formatAmount(balance.abs())}',
+                    balance == 0 ? '${getCurrencySymbol(currency)}0' : '${getCurrencySymbol(currency)}${formatAmount(balance.abs())}',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: balance == 0
@@ -2578,7 +2732,7 @@ class _BalancesTab extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '₹${formatAmount(t.amount)}',
+                      '${getCurrencySymbol(currency)}${formatAmount(t.amount)}',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: kPrimaryBlue,
                             fontWeight: FontWeight.w600,
@@ -2607,6 +2761,7 @@ class _SettleTab extends StatelessWidget {
     required this.onPay,
     required this.onRecord,
     required this.onRemind,
+    required this.currency,
   });
 
   final List<SettlementTransaction> transactions;
@@ -2615,6 +2770,7 @@ class _SettleTab extends StatelessWidget {
   final Future<void> Function(SettlementTransaction) onPay;
   final Future<void> Function(SettlementTransaction) onRecord;
   final Future<void> Function(SettlementTransaction) onRemind;
+  final String currency;
 
   @override
   Widget build(BuildContext context) {
@@ -2657,6 +2813,7 @@ class _SettleTab extends StatelessWidget {
                 onRecord: () => onRecord(transaction),
                 onRemind: () => onRemind(transaction),
                 memberMap: memberMap,
+                currency: currency,
               ),
             ),
           ),
@@ -2665,9 +2822,15 @@ class _SettleTab extends StatelessWidget {
   }
 }
 
-// ─── Transaction card ────────────────────────────────────────────────────
-
 class _TransactionCard extends StatelessWidget {
+  final SettlementTransaction transaction;
+  final String currentUserId;
+  final VoidCallback onPay;
+  final VoidCallback onRecord;
+  final VoidCallback onRemind;
+  final Map<String, GroupMember> memberMap;
+  final String currency;
+
   const _TransactionCard({
     required this.transaction,
     required this.currentUserId,
@@ -2675,14 +2838,8 @@ class _TransactionCard extends StatelessWidget {
     required this.onRecord,
     required this.onRemind,
     required this.memberMap,
+    required this.currency,
   });
-
-  final SettlementTransaction transaction;
-  final String currentUserId;
-  final VoidCallback onPay;
-  final VoidCallback onRecord;
-  final VoidCallback onRemind;
-  final Map<String, GroupMember> memberMap;
 
   @override
   Widget build(BuildContext context) {
@@ -2745,7 +2902,7 @@ class _TransactionCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '₹${formatAmount(transaction.amount)}',
+                      '${getCurrencySymbol(currency)}${formatAmount(transaction.amount)}',
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
@@ -2937,7 +3094,7 @@ class _AnalyticsSheet extends StatelessWidget {
                               Icon(cat.icon, size: 18, color: kPrimaryBlue),
                               const SizedBox(width: 12),
                               Expanded(child: Text(cat.label, style: const TextStyle(fontWeight: FontWeight.w600))),
-                              Text('₹${formatAmount(amount)}', style: const TextStyle(fontWeight: FontWeight.w600, color: kPrimaryBlue)),
+                              Text('${getCurrencySymbol(group.currency)}${formatAmount(amount)}', style: const TextStyle(fontWeight: FontWeight.w600, color: kPrimaryBlue)),
                             ],
                           ),
                           const SizedBox(height: 8),

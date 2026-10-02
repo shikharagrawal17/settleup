@@ -14,6 +14,8 @@ class SettlementGroup {
     this.lastActionBy,
     this.lastActionType,
     this.netBalances = const {},
+    this.totalSpent = 0.0,
+    this.currency = 'INR',
   });
 
   final String id;
@@ -26,7 +28,9 @@ class SettlementGroup {
   final DateTime? updatedAt;
   final String? lastActionBy;
   final String? lastActionType;
-  final Map<String, int> netBalances;
+  final Map<String, double> netBalances;
+  final double totalSpent;
+  final String currency;
 
   Map<String, dynamic> toJson() {
     return {
@@ -38,6 +42,8 @@ class SettlementGroup {
       'lastActionType': lastActionType,
       'members': members.map((member) => member.toJson()).toList(),
       'netBalances': netBalances,
+      'totalSpent': totalSpent,
+      'currency': currency,
     };
   }
 
@@ -47,7 +53,7 @@ class SettlementGroup {
     
     final balancesRaw = json['netBalances'] as Map<String, dynamic>? ?? {};
     final netBalances = balancesRaw.map(
-      (key, value) => MapEntry(key, (value as num).toInt()),
+      (key, value) => MapEntry(key, (value as num).toDouble()),
     );
 
     DateTime? parseDate(dynamic d) {
@@ -67,6 +73,8 @@ class SettlementGroup {
       lastActionBy: json['lastActionBy'] as String?,
       lastActionType: json['lastActionType'] as String?,
       netBalances: netBalances,
+      totalSpent: (json['totalSpent'] as num?)?.toDouble() ?? 0.0,
+      currency: json['currency'] as String? ?? 'INR',
       members: membersJson
           .map(
             (member) => GroupMember.fromJson(

@@ -8,14 +8,24 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Helper to safely get user data without crashing if doc is missing
+    function getUserData() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : null;
+    }
+
     // A user is a member if their UID, Phone, or Email exists in the group's memberIdentifiers array
     function isMember(groupData) {
+      let userData = getUserData();
       return isSignedIn() && (
-        request.auth.uid in groupData.memberIdentifiers ||
-        (request.auth.token.phone_number != null && request.auth.token.phone_number in groupData.memberIdentifiers) ||
-        (request.auth.token.email != null && request.auth.token.email in groupData.memberIdentifiers) ||
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.phoneNumber in groupData.memberIdentifiers) ||
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email in groupData.memberIdentifiers)
+        (groupData.memberIdentifiers != null && request.auth.uid in groupData.memberIdentifiers) ||
+        (groupData.memberIds != null && request.auth.uid in groupData.memberIds) ||
+        (groupData.memberLogins != null && request.auth.uid in groupData.memberLogins) ||
+        (request.auth.token.phone_number != null && groupData.memberIdentifiers != null && request.auth.token.phone_number in groupData.memberIdentifiers) ||
+        (request.auth.token.email != null && groupData.memberIdentifiers != null && request.auth.token.email in groupData.memberIdentifiers) ||
+        (userData != null && userData.phoneNumber != null && groupData.memberIdentifiers != null && userData.phoneNumber in groupData.memberIdentifiers) ||
+        (userData != null && userData.email != null && groupData.memberIdentifiers != null && userData.email in groupData.memberIdentifiers)
       );
     }
 
@@ -26,20 +36,36 @@ service cloud.firestore {
     // -- COLLECTION RULES --
 
     match /groups/{groupId} {
-      allow read, update: if isMember(resource.data);
+      allow read: if isSignedIn();
+      // Current members can update, or a signed-in user joining can append themselves to membership
+      allow update: if isMember(resource.data) || (
+        isSignedIn() && 
+        !resource.data.isDeleted && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberIds', 'memberLogins', 'memberIdentifiers', 'updatedAt'])
+      );
       allow create: if isSignedIn();
-      allow delete: if isMember(resource.data);
+      allow delete: if false; // Only soft-deletes are supported
 
       match /expenses/{expenseId} {
         allow read, write: if isMember(getGroup(groupId));
       }
 
       match /settlements/{settlementId} {
-        allow read, write: if isMember(getGroup(groupId));
+        allow read, create: if isMember(getGroup(groupId));
+        allow delete: if isMember(getGroup(groupId)) && (
+          resource.data.createdBy == request.auth.uid ||
+          resource.data.fromMemberId == request.auth.uid ||
+          resource.data.toMemberId == request.auth.uid
+        );
+        // Allow members to confirm or dispute settlements (status transitions)
+        allow update: if isMember(getGroup(groupId)) && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'confirmedAt', 'updatedAt'])
+        );
       }
 
       match /activities/{activityId} {
-        allow read, write: if isMember(getGroup(groupId));
+        allow read, create: if isMember(getGroup(groupId));
+        allow update, delete: if false; // Audit logs are strictly immutable
       }
     }
 
@@ -57,7 +83,9 @@ service cloud.firestore {
     // Registry for looking up UIDs by email or phone
     match /registries/{registryId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
     }
   }
 }

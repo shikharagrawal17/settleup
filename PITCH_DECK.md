@@ -1,5 +1,7 @@
 # Bharat Dues: Product Showcase
 
+![Logo](docs/assets/logo.png)
+
 ![Hero Cover](docs/assets/hero.png)
 
 ## 1. The Vision
@@ -12,7 +14,18 @@ Bharat Dues is a premium, **UPI-first** expense tracking solution designed for t
 
 ---
 
-## 2. How It Works
+## 2. The Gap
+### Why Bharat Dues?
+
+| Solution | The Problem |
+| :--- | :--- |
+| **Traditional Apps** | Great for tracking, but require a "second dance" of switching to a payment app, typing amounts, and manually marking as paid. |
+| **Native UPI Groups** | Great for payments, but lack sophisticated split-logic (%, unequal) and debt minimization for multi-expense trips. |
+| **Bharat Dues** | **The Best of Both Worlds.** Tracks like a pro, minimizes transfers, and settles with a single tap via deep-linking. |
+
+---
+
+## 3. How It Works
 ### The Seamless Cycle of Settlement
 
 ![Flow Graphic](docs/assets/flow.png)
@@ -22,8 +35,9 @@ graph LR
     A[Create Group] --> B[Add Expense]
     B --> C[Auto-Split]
     C --> D[Greedy Minimizer]
-    D --> E[Direct UPI Pay]
-    E --> F[Instant Activity Log]
+    D --> E[Unified Global Settlement]
+    E --> F[Bidirectional UPI QR]
+    F --> G[Interactive Activity Tab]
 ```
 
 ---
@@ -35,9 +49,9 @@ graph LR
 | **Multi-Mode Splitting** | Equal, %, Shares, or Exact Amount | Flexibilty for every scenario |
 | **Greedy Minimizer** | Sophisticated debt reduction algo | Fewer transactions, less hassle |
 | **Real-Time Sync** | Firestore event-driven streams | Everyone stays on the same page |
-| **Activity Audit** | Detailed "who changed what" log | Absolute transparency & trust |
-| **UPI Intent** | Direct deep-linking to Payment Apps | Pay in 2 taps, no manual entry |
-| **Smart Approvals** | Instant confirmation for receivers | Frictionless manual payments |
+| **Interactive Activity** | Inline confirmations & WhatsApp reminders | Faster settlements & transparency |
+| **Unified Global Settlement** | Bidirectional UPI QR & Deep-linking | Pay or receive in 2 taps |
+| **Identity Registries** | Cross-platform email/phone syncing | Rock-solid data integrity |
 
 ---
 
@@ -48,8 +62,9 @@ The app features a **modern, high-contrast Light Theme** designed for the Indian
 
 - **Vibrant Blue Accents** (`#00B9F1`): For clarity and trust.
 - **Minimalist Surfaces**: Clean white cards on subtle grey backgrounds.
-- **High-Contrast Type**: Optimized for outdoor legibility using Dark Blue (`#002E6E`).
-- **Glassmorphic Touches**: For a modern, high-end feel.
+- **Standardized Terminology**: Clear "You owe" vs "You are owed" labels.
+- **Web/PWA Optimized**: Seamless experience across mobile and desktop.
+- **Settlement Scaling**: Reducing complexity from 10+ random transfers down to ~3 optimized ones using the Greedy Minimizer algorithm.
 
 ---
 
@@ -64,9 +79,9 @@ The app features a **modern, high-contrast Light Theme** designed for the Indian
 ## 6. Tech Stack & Trust
 
 **Built on Rock-Solid Infrastructure:**
-- **Frontend**: Flutter (High-performance Cross-platform)
+- **Frontend**: Flutter (High-performance Cross-platform & Web/PWA)
 - **Backend**: Firebase Firestore (NoSQL Real-time)
-- **Security**: Identity Linking (Legacy to UID mapping)
+- **Security**: Registry-based Identity (UID, Phone, and Email sync)
 - **Precision**: Double-precision accounting with cent-based distribution.
 
 ---

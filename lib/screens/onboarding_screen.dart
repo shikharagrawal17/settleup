@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import '../widgets/app_shell_widgets.dart';
@@ -85,13 +86,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           controller: _phoneController,
                           decoration: const InputDecoration(labelText: 'Phone Number', hintText: '+91...'),
                           keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'[0-9+]')),
+                          ],
                           validator: (v) => v!.isEmpty ? 'Enter phone number' : null,
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _upiController,
-                          decoration: const InputDecoration(labelText: 'UPI ID', hintText: 'username@bank'),
-                          validator: (v) => v!.isEmpty ? 'Enter UPI ID' : null,
+                          decoration: const InputDecoration(labelText: 'UPI ID (Optional)', hintText: 'username@bank'),
+                          validator: (v) {
+                            if (v != null && v.trim().isNotEmpty) {
+                              return context.read<AppState>().validateUpiId(v.trim());
+                            }
+                            return null;
+                          },
                         ),
                       ],
                     ),

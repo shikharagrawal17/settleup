@@ -17,12 +17,20 @@ class AppShell extends StatelessWidget {
 
     // Capture join parameter from URL if present
     final uri = Uri.base;
-    if (uri.queryParameters.containsKey('join')) {
-      final id = uri.queryParameters['join'];
+    String? joinId = uri.queryParameters['join'];
+    if (joinId == null && uri.fragment.contains('?')) {
+      final fragmentParts = uri.fragment.split('?');
+      if (fragmentParts.length > 1) {
+        final dummyUri = Uri.parse('http://dummy?${fragmentParts[1]}');
+        joinId = dummyUri.queryParameters['join'];
+      }
+    }
+
+    if (joinId != null) {
       // Only set if different to avoid infinite notifyListeners loops if AppShell rebuilds
-      if (id != appState.pendingJoinGroupId) {
+      if (joinId != appState.pendingJoinGroupId) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          appState.pendingJoinGroupId = id;
+          appState.pendingJoinGroupId = joinId;
         });
       }
     }

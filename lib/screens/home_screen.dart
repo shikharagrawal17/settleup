@@ -9,11 +9,11 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../models/settlement_group.dart';
 import '../models/group_member.dart';
 import '../models/user_profile.dart';
-import '../models/expense.dart';
 import '../models/settlement_record.dart';
 import '../providers/app_state.dart';
 import '../widgets/app_shell_widgets.dart';
 import '../utils/settlement_helper.dart';
+import '../utils/currency_helper.dart';
 import 'group_form_screen.dart';
 import 'group_settlement_screen.dart';
 
@@ -33,6 +33,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  AppState? _appState;
 
   @override
   void initState() {
@@ -57,7 +58,28 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final appState = context.read<AppState>();
+    if (_appState != appState) {
+      _appState?.removeListener(_onAppStateChanged);
+      _appState = appState;
+      _appState?.addListener(_onAppStateChanged);
+    }
+  }
+
+  void _onAppStateChanged() {
+    final appState = _appState;
+    if (appState != null && appState.pendingJoinGroupId != null && mounted) {
+      final id = appState.pendingJoinGroupId!;
+      appState.pendingJoinGroupId = null;
+      _handleJoinGroup(appState, id);
+    }
+  }
+
+  @override
   void dispose() {
+    _appState?.removeListener(_onAppStateChanged);
     _tabController.dispose();
     super.dispose();
   }
@@ -143,6 +165,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     TextFormField(
                       controller: phoneController,
                       keyboardType: TextInputType.phone,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9+]')),
+                      ],
                       decoration: const InputDecoration(
                         labelText: 'Phone Number',
                         prefixIcon: Icon(Icons.phone_outlined),
@@ -175,11 +200,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       child: FilledButton(
                         onPressed: () async {
                           if (!formKey.currentState!.validate()) return;
-                          await appState.saveProfile(
-                            upiId: upiController.text.trim(),
-                            phoneNumber: phoneController.text.trim(),
-                          );
-                          if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                          try {
+                            await appState.saveProfile(
+                              upiId: upiController.text.trim(),
+                              phoneNumber: phoneController.text.trim(),
+                            );
+                            if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                          } catch (e) {
+                            if (sheetContext.mounted) {
+                              ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to save: ${e.toString().replaceAll('Exception: ', '')}. Check your connection.'),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                            }
+                          }
                         },
                         child: const Text('Save Profile'),
                       ),
@@ -553,6 +589,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               groupName: group.name,
               record: s,
               isWaitingForMe: isReceiver,
+              currency: group.currency,
             ));
           }
         }
@@ -585,17 +622,37 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         }
       }
 
-      if (myNetRelGroup > 0.005) {
-        totalOwed += myNetRelGroup;
-      } else if (myNetRelGroup < -0.005) {
-        totalOwe += myNetRelGroup.abs();
+      double convertedMyNet = myNetRelGroup;
+      if (group.currency.toUpperCase() != 'INR' && myNetRelGroup.abs() > 0.005) {
+        convertedMyNet = await CurrencyHelper.convert(
+          amount: myNetRelGroup.abs(),
+          from: group.currency,
+          to: 'INR',
+        ) * (myNetRelGroup < 0 ? -1 : 1);
       }
 
-      for (final m in group.members) {
-        if (myIdsInGroup.contains(m.id)) continue;
-        
-        final balance = balances[m.id] ?? 0.0;
-        if (balance.abs() < 0.005) continue;
+      if (convertedMyNet > 0.005) {
+        totalOwed += convertedMyNet;
+      } else if (convertedMyNet < -0.005) {
+        totalOwe += convertedMyNet.abs();
+      }
+
+      // Compute pairwise bilateral debts for this group:
+      final transactions = settleBalances(group.members, balances);
+      final pairwiseDebts = computePairwiseBilateralDebts(
+        myMemberIds: myIdsInGroup,
+        transactions: transactions,
+      );
+
+      for (final entry in pairwiseDebts.entries) {
+        final friendMemberId = entry.key;
+        final bilateralDebt = entry.value; // > 0: friend owes user; < 0: user owes friend
+        if (bilateralDebt.abs() < 0.005) continue;
+
+        final m = group.members.firstWhere(
+          (member) => member.id == friendMemberId,
+          orElse: () => GroupMember(id: friendMemberId, name: 'Unknown'),
+        );
 
         final String friendKey = m.uid ?? 
                                  (m.phoneNumber != null ? AppState.normalisePhone(m.phoneNumber!) : null) ?? 
@@ -608,15 +665,32 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             upiId: m.upiId,
             phoneNumber: m.phoneNumber,
           );
+        } else {
+          if (friendBalances[friendKey]!.upiId == null && m.upiId != null) {
+            friendBalances[friendKey]!.upiId = m.upiId;
+          }
+          if (friendBalances[friendKey]!.phoneNumber == null && m.phoneNumber != null) {
+            friendBalances[friendKey]!.phoneNumber = m.phoneNumber;
+          }
         }
-        
-        friendBalances[friendKey]!.netBalance += balance;
+
+        double convertedDebt = bilateralDebt;
+        if (group.currency.toUpperCase() != 'INR' && bilateralDebt.abs() > 0.005) {
+          convertedDebt = await CurrencyHelper.convert(
+            amount: bilateralDebt.abs(),
+            from: group.currency,
+            to: 'INR',
+          ) * (bilateralDebt < 0 ? -1 : 1);
+        }
+
+        friendBalances[friendKey]!.netBalance += convertedDebt;
         friendBalances[friendKey]!.contributions.add(_GroupContribution(
           groupId: group.id,
           groupName: group.name,
           myMemberId: myPrimaryIdInGroup ?? uid,
           friendMemberId: m.id,
-          balance: balance,
+          balance: bilateralDebt, // native group currency amount
+          currency: group.currency,
         ));
       }
     }
@@ -651,25 +725,27 @@ class _PendingSettlementBatch {
   final SettlementRecord record;
   final bool isWaitingForMe;
 
-  _PendingSettlementBatch({required this.groupId, required this.groupName, required this.record, required this.isWaitingForMe});
+  final String currency;
+
+  _PendingSettlementBatch({required this.groupId, required this.groupName, required this.record, required this.isWaitingForMe, required this.currency});
 }
 
 class _FriendBalance {
   final String name;
   double netBalance;
-  final String? upiId;
-  final String? phoneNumber;
+  String? upiId;
+  String? phoneNumber;
   final List<_GroupContribution> contributions = [];
 
   _FriendBalance({required this.name, required this.netBalance, this.upiId, this.phoneNumber});
 }
-
 class _GroupContribution {
   final String groupId;
   final String groupName;
   final String myMemberId;
   final String friendMemberId;
   final double balance;
+  final String currency;
 
   _GroupContribution({
     required this.groupId,
@@ -677,6 +753,7 @@ class _GroupContribution {
     required this.myMemberId,
     required this.friendMemberId,
     required this.balance,
+    required this.currency,
   });
 }
 
@@ -783,8 +860,9 @@ class _FriendsList extends StatelessWidget {
         ],
         ...financials.friendBalances.map((friend) {
         final net = friend.netBalance;
-        final color = net > 0 ? Colors.redAccent : const Color(0xFF4ADE80);
-        final statusText = net > 0 ? 'You owe' : 'Is owed';
+        final isOwedToMe = net > 0.005;
+        final color = isOwedToMe ? const Color(0xFF4ADE80) : Colors.redAccent;
+        final statusText = isOwedToMe ? 'Owes you' : 'You owe';
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -825,7 +903,7 @@ class _FriendsList extends StatelessWidget {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (net < -0.01 && friend.phoneNumber != null)
+                          if (isOwedToMe && friend.phoneNumber != null)
                             IconButton(
                               onPressed: () async {
                                 final text = 'Hey ${friend.name}, just a friendly reminder about the ₹${formatAmount(net.abs())} balance in our Bharat Dues groups. Please settle when you can! 😉';
@@ -839,7 +917,7 @@ class _FriendsList extends StatelessWidget {
                               constraints: const BoxConstraints(),
                               tooltip: 'Remind on WhatsApp',
                             ),
-                          if (net > 0.01 && friend.upiId != null)
+                          if (!isOwedToMe && friend.upiId != null)
                             IconButton(
                               onPressed: () async {
                                 final url = Uri.parse('upi://pay?pa=${friend.upiId}&pn=${Uri.encodeComponent(friend.name)}&am=${formatAmount(net.abs())}&cu=INR');
@@ -870,7 +948,7 @@ class _FriendsList extends StatelessWidget {
             ),
           ),
         );
-      }).toList(),
+      }),
       ],
     );
   }
@@ -918,7 +996,7 @@ class _PendingSettlementCard extends StatelessWidget {
                 ],
               ),
             ),
-            Text('₹${formatAmount(pending.record.amount)}', 
+            Text('${getCurrencySymbol(pending.currency)}${formatAmount(pending.record.amount)}', 
               style: TextStyle(
                 fontWeight: FontWeight.w800, 
                 fontSize: 14, 
@@ -986,7 +1064,7 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
   @override
   Widget build(BuildContext context) {
     final net = widget.friend.netBalance;
-    final isIowe = net > 0;
+    final isIowe = net < -0.005;
     final upiIdToShow = isIowe ? widget.friend.upiId : widget.currentProfile.upiId;
     final nameToShow = isIowe ? widget.friend.name : widget.currentProfile.displayName;
     final hasUpi = upiIdToShow != null && upiIdToShow.isNotEmpty;
@@ -1043,7 +1121,7 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
             // Move QR to top
             if (hasUpi && !_paymentInitiated) ...[
               _SettleQrBox(
-                upiId: upiIdToShow!,
+                upiId: upiIdToShow,
                 name: nameToShow,
                 amount: net.abs(),
               ),
@@ -1052,7 +1130,7 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
-                    onPressed: () => _handlePay(upiIdToShow!, nameToShow, net.abs()),
+                    onPressed: () => _handlePay(upiIdToShow, nameToShow, net.abs()),
                     icon: const Icon(Icons.account_balance_wallet_outlined, size: 20),
                     label: const Text('Pay via UPI App', style: TextStyle(fontWeight: FontWeight.w700)),
                     style: FilledButton.styleFrom(
@@ -1108,7 +1186,7 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
             const SizedBox(height: 16),
             Column(
               children: widget.friend.contributions.map((contra) {
-                final iOweThis = contra.balance > 0;
+                final iOweThis = contra.balance < -0.005;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Row(
@@ -1127,7 +1205,7 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
                           ],
                         ),
                       ),
-                      Text('₹${formatAmount(contra.balance.abs())}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      Text('${getCurrencySymbol(contra.currency)}${formatAmount(contra.balance.abs())}', style: const TextStyle(fontWeight: FontWeight.w700)),
                     ],
                   ),
                 );
@@ -1257,15 +1335,14 @@ class _SettleAllSheetState extends State<_SettleAllSheet> {
     // Thus, all individual transactions should be auto-confirmed (handshaked).
     // If on net I am paying, I am recording an outbound payment, so all should stay pending.
     final globalNet = widget.friend.netBalance;
-    final isIoweGlobal = globalNet > 0.005;
+    final isIoweGlobal = globalNet < -0.005;
     final shouldConfirmAll = !isIoweGlobal;
 
     try {
       for (final contra in widget.friend.contributions) {
-        final fromId = contra.balance > 0 ? contra.myMemberId : contra.friendMemberId;
-        final toId = contra.balance > 0 ? contra.friendMemberId : contra.myMemberId;
-        
-        final isIoweThisGroup = contra.balance > 0;
+        final isIoweThisGroup = contra.balance < -0.005;
+        final fromId = isIoweThisGroup ? contra.myMemberId : contra.friendMemberId;
+        final toId = isIoweThisGroup ? contra.friendMemberId : contra.myMemberId;
 
         await appState.addSettlement(
           groupId: contra.groupId,
@@ -1724,10 +1801,10 @@ class _EmptyGroups extends StatelessWidget {
         child: const Column(
           children: [
             Icon(Icons.groups_3_outlined, size: 32, color: kPrimaryBlue),
-            const SizedBox(height: 12),
-            const Text('No groups yet', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kDarkBlue)),
-            const SizedBox(height: 4),
-            const Text('Groups are perfect for trips and housemates.', style: TextStyle(color: Colors.black54), textAlign: TextAlign.center),
+            SizedBox(height: 12),
+            Text('No groups yet', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kDarkBlue)),
+            SizedBox(height: 4),
+            Text('Groups are perfect for trips and housemates.', style: TextStyle(color: Colors.black54), textAlign: TextAlign.center),
           ],
         ),
       ),
