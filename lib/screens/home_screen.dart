@@ -395,6 +395,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         ? CircleAvatar(
                             radius: 14,
                             backgroundImage: NetworkImage(profile.photoUrl!),
+                            onBackgroundImageError: (_, __) {},
+                            child: const Icon(Icons.person, size: 14),
                           )
                         : const Icon(Icons.account_circle_outlined),
                   ),
