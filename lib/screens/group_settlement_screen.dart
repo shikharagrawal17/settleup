@@ -8,7 +8,6 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../utils/currency_helper.dart';
-import '../utils/ocr_helper.dart';
 import '../utils/report_helper.dart';
 import '../models/expense.dart';
 import '../models/group_member.dart';
@@ -22,6 +21,8 @@ import '../utils/settlement_helper.dart';
 import '../utils/upi_helper.dart';
 import '../widgets/app_shell_widgets.dart';
 import 'edit_group_screen.dart';
+import '../services/gemini_service.dart';
+import '../widgets/gemini_ai_dialogs.dart';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
@@ -449,22 +450,29 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
 
   // ─── Add expense bottom sheet ─────────────────────────────────────────
 
-  Future<void> _openAddEditExpense(AppState appState, List<GroupMember> resolvedMembers, {Expense? initialExpense}) async {
+  Future<void> _openAddEditExpense(AppState appState, List<GroupMember> resolvedMembers, {Expense? initialExpense, GeminiSplitPlan? initialPlan}) async {
     _convertedAmount = initialExpense?.baseAmount;
-    final descCtrl = TextEditingController(text: initialExpense?.description ?? '');
-    final amountCtrl = TextEditingController(text: (initialExpense?.amount ?? 0) > 0 ? formatAmount(initialExpense!.amount) : '');
+    final descCtrl = TextEditingController(text: initialPlan?.description ?? initialExpense?.description ?? '');
+    final initialAmount = initialPlan?.amount ?? initialExpense?.amount ?? 0;
+    final amountCtrl = TextEditingController(text: initialAmount > 0 ? formatAmount(initialAmount) : '');
     final formKey = GlobalKey<FormState>();
-    String payerId = initialExpense?.payerId ?? resolvedMembers.first.id;
-    SplitMode splitMode = initialExpense == null ? SplitMode.equal : SplitMode.exact;
+    String payerId = initialPlan?.payerMemberId ?? initialExpense?.payerId ?? resolvedMembers.first.id;
+    SplitMode splitMode = (initialPlan?.customShares != null && initialPlan!.customShares!.isNotEmpty)
+        ? SplitMode.exact
+        : (initialExpense == null ? SplitMode.equal : SplitMode.exact);
     
     // Track who is included in this split
-    final includedIds = initialExpense == null 
-        ? resolvedMembers.map((m) => m.id).toSet() 
-        : initialExpense.shares.entries.where((e) => e.value > 0).map((e) => e.key).toSet();
+    final includedIds = initialPlan != null
+        ? initialPlan.participatingMemberIds.toSet()
+        : (initialExpense == null 
+            ? resolvedMembers.map((m) => m.id).toSet() 
+            : initialExpense.shares.entries.where((e) => e.value > 0).map((e) => e.key).toSet());
 
     final shareControllers = {
       for (final m in resolvedMembers) m.id: TextEditingController(
-        text: initialExpense?.shares[m.id] != null ? formatAmount(initialExpense!.shares[m.id]!) : '',
+        text: initialPlan?.customShares?[m.id] != null
+            ? formatAmount(initialPlan!.customShares![m.id]!)
+            : (initialExpense?.shares[m.id] != null ? formatAmount(initialExpense!.shares[m.id]!) : ''),
       ),
     };
     final pctControllers = {
@@ -479,15 +487,16 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
     };
 
     final initialTotal = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
-    if (initialExpense == null && initialTotal > 0 && splitMode == SplitMode.equal) {
-      final initialShares = buildEqualShareMap(total: initialTotal, members: resolvedMembers);
+    if ((initialExpense == null || initialPlan != null) && initialTotal > 0 && splitMode == SplitMode.equal) {
+      final includedMembers = resolvedMembers.where((m) => includedIds.contains(m.id)).toList();
+      final initialShares = buildEqualShareMap(total: initialTotal, members: includedMembers);
       for (final m in resolvedMembers) {
         shareControllers[m.id]!.text = formatAmount(initialShares[m.id] ?? 0.0);
       }
     }
 
-    ExpenseCategory selectedCategory = initialExpense?.category ?? ExpenseCategory.other;
-    bool isCategoryManual = initialExpense != null;
+    ExpenseCategory selectedCategory = initialPlan?.category ?? initialExpense?.category ?? ExpenseCategory.other;
+    bool isCategoryManual = initialPlan != null || initialExpense != null;
     String selectedCurrency = initialExpense?.currency ?? _group.currency;
 
     await showModalBottomSheet<void>(
@@ -592,23 +601,71 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                           hintText: 'Dinner, Groceries, Rent...',
                           hintStyle: const TextStyle(color: Colors.grey, fontWeight: FontWeight.normal),
                           floatingLabelBehavior: FloatingLabelBehavior.always,
-                          suffixIcon: kIsWeb
-                              ? null
-                              : IconButton(
-                                  icon: const Icon(Icons.document_scanner_outlined, color: kPrimaryBlue),
-                                  tooltip: 'Scan Receipt',
-                                  onPressed: () async {
-                                    final result = await OcrHelper.scanReceipt();
-                                    if (result != null) {
+                          suffixIcon: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.auto_awesome, color: Color(0xFF1A73E8), size: 20),
+                                tooltip: 'Smart AI Split (Google Gemini)',
+                                onPressed: () {
+                                  showSmartSplitSheet(
+                                    context,
+                                    members: resolvedMembers,
+                                    onPlanReady: (plan) {
                                       setSheetState(() {
-                                        if (result.description != null) descCtrl.text = result.description!;
-                                        if (result.amount != null) amountCtrl.text = formatAmount(result.amount!);
-                                        selectedCategory = ExpenseCategory.detect(descCtrl.text);
+                                        descCtrl.text = plan.description;
+                                        amountCtrl.text = formatAmount(plan.amount);
+                                        selectedCategory = plan.category;
+                                        isCategoryManual = true;
+                                        if (plan.payerMemberId != null) {
+                                          payerId = plan.payerMemberId!;
+                                        }
+                                        includedIds.clear();
+                                        includedIds.addAll(plan.participatingMemberIds);
+
+                                        if (plan.customShares != null && plan.customShares!.isNotEmpty) {
+                                          splitMode = SplitMode.exact;
+                                          for (final m in resolvedMembers) {
+                                            final shareVal = plan.customShares![m.id] ?? 0.0;
+                                            shareControllers[m.id]?.text = shareVal > 0 ? formatAmount(shareVal) : '';
+                                          }
+                                        } else {
+                                          splitMode = SplitMode.equal;
+                                        }
                                         recomputeShares();
                                       });
-                                    }
-                                  },
-                                ),
+                                    },
+                                  );
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.document_scanner_outlined, color: kPrimaryBlue, size: 20),
+                                tooltip: 'Scan Receipt / Bill (Google AI)',
+                                onPressed: () {
+                                  showReceiptScanOptionsSheet(
+                                    context,
+                                    onScanned: (result) {
+                                      setSheetState(() {
+                                        if (result.description != null && result.description!.isNotEmpty) {
+                                          descCtrl.text = result.description!;
+                                        }
+                                        if (result.amount != null && result.amount! > 0) {
+                                          amountCtrl.text = formatAmount(result.amount!);
+                                        }
+                                        if (result.category != null) {
+                                          selectedCategory = result.category!;
+                                          isCategoryManual = true;
+                                        } else if (descCtrl.text.isNotEmpty) {
+                                          selectedCategory = ExpenseCategory.detect(descCtrl.text);
+                                        }
+                                        recomputeShares();
+                                      });
+                                    },
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
                         ),
                         onChanged: (v) => setSheetState(() {
                           if (!isCategoryManual) {
@@ -1269,6 +1326,19 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                             tooltip: 'Analytics',
                           ),
                           IconButton(
+                            onPressed: () {
+                              showSmartSplitSheet(
+                                context,
+                                members: resolvedMembers,
+                                onPlanReady: (plan) {
+                                  _openAddEditExpense(appState, resolvedMembers, initialPlan: plan);
+                                },
+                              );
+                            },
+                            icon: const Icon(Icons.auto_awesome, color: Colors.amberAccent),
+                            tooltip: 'Gemini AI Assistant',
+                          ),
+                          IconButton(
                             onPressed: () => _openEditGroup(appState, expenses, settlements),
                             icon: const Icon(Icons.settings_outlined),
                             tooltip: 'Settings',
@@ -1477,10 +1547,34 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                           ),
                         ],
                       ),
-                      floatingActionButton: FloatingActionButton.extended(
-                        onPressed: () => _openAddEditExpense(appState, resolvedMembers),
-                        icon: const Icon(Icons.add_rounded, size: 28),
-                        label: const Text('Expense'),
+                      floatingActionButton: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          FloatingActionButton.extended(
+                            heroTag: 'ai_smart_split_fab',
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF1A73E8),
+                            elevation: 3,
+                            onPressed: () {
+                              showSmartSplitSheet(
+                                context,
+                                members: resolvedMembers,
+                                onPlanReady: (plan) {
+                                  _openAddEditExpense(appState, resolvedMembers, initialPlan: plan);
+                                },
+                              );
+                            },
+                            icon: const Icon(Icons.auto_awesome, size: 18, color: Color(0xFF1A73E8)),
+                            label: const Text('AI Split', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          ),
+                          const SizedBox(width: 10),
+                          FloatingActionButton.extended(
+                            heroTag: 'add_expense_fab',
+                            onPressed: () => _openAddEditExpense(appState, resolvedMembers),
+                            icon: const Icon(Icons.add_rounded, size: 28),
+                            label: const Text('Expense'),
+                          ),
+                        ],
                       ),
                     );
                   },
