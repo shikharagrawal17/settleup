@@ -1,0 +1,887 @@
+{
+  "ok": true,
+  "strict": false,
+  "browserSkipped": false,
+  "lint": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 5,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "composition_file_too_large",
+        "severity": "warning",
+        "message": "This HTML composition file has 368 lines. Smaller sub-compositions are easier to read, iterate on, and diff.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "/Users/shikhar/Projects/settleup_lite/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Split coherent scenes or layers into separate .html files under compositions/, then mount them from the parent with data-composition-src so each file stays small enough to inspect, revise, and validate independently."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"scene1\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#scene1",
+        "dataAttributes": {},
+        "sourceFile": "/Users/shikhar/Projects/settleup_lite/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"scene1\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"scene2\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#scene2",
+        "dataAttributes": {},
+        "sourceFile": "/Users/shikhar/Projects/settleup_lite/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"scene2\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"scene3\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#scene3",
+        "dataAttributes": {},
+        "sourceFile": "/Users/shikhar/Projects/settleup_lite/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"scene3\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"scene4\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#scene4",
+        "dataAttributes": {},
+        "sourceFile": "/Users/shikhar/Projects/settleup_lite/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"scene4\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      }
+    ],
+    "filesScanned": 1
+  },
+  "runtime": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "layout": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 7,
+    "findings": [
+      {
+        "code": "text_occluded",
+        "severity": "info",
+        "time": 14.444,
+        "selector": "div.upi-recipient",
+        "message": "Text is hidden beneath an opaque element.",
+        "rect": {
+          "left": 442.44,
+          "top": 399.3,
+          "right": 860.05,
+          "bottom": 423.3,
+          "width": 417.61,
+          "height": 24
+        },
+        "containerSelector": "#success-screen",
+        "text": "Paying to Aarav Sharma (+91 98765 43210)",
+        "fixHint": "Give the text its own zone, raise its stacking order above the covering element, or mark intentional layering with data-layout-allow-occlusion.",
+        "coveredFraction": 1,
+        "dataAttributes": {
+          "data-hf-id": "hf-xluf"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 442.44,
+          "y": 399.3,
+          "width": 417.61,
+          "height": 24
+        },
+        "firstSeen": 14.444,
+        "lastSeen": 14.444,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          14.444
+        ]
+      },
+      {
+        "code": "text_occluded",
+        "severity": "info",
+        "time": 14.444,
+        "selector": "div.upi-amount",
+        "message": "Text is hidden beneath an opaque element.",
+        "rect": {
+          "left": 505.08,
+          "top": 431.3,
+          "right": 797.42,
+          "bottom": 499.3,
+          "width": 292.34,
+          "height": 68
+        },
+        "containerSelector": "#success-screen",
+        "text": "₹2,450.00",
+        "fixHint": "Give the text its own zone, raise its stacking order above the covering element, or mark intentional layering with data-layout-allow-occlusion.",
+        "coveredFraction": 1,
+        "dataAttributes": {
+          "data-hf-id": "hf-dusz"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 505.08,
+          "y": 431.3,
+          "width": 292.34,
+          "height": 68
+        },
+        "firstSeen": 14.444,
+        "lastSeen": 14.444,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          14.444
+        ]
+      },
+      {
+        "code": "text_occluded",
+        "severity": "info",
+        "time": 14.444,
+        "selector": "div.upi-apps-row > div:nth-of-type(1)",
+        "message": "Text is hidden beneath an opaque element.",
+        "rect": {
+          "left": 445.69,
+          "top": 800.3,
+          "right": 533.91,
+          "bottom": 820.3,
+          "width": 88.22,
+          "height": 20
+        },
+        "containerSelector": "#success-screen",
+        "text": "Google Pay",
+        "fixHint": "Give the text its own zone, raise its stacking order above the covering element, or mark intentional layering with data-layout-allow-occlusion.",
+        "coveredFraction": 1,
+        "dataAttributes": {
+          "data-hf-id": "hf-ij06"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 445.69,
+          "y": 800.3,
+          "width": 88.22,
+          "height": 20
+        },
+        "firstSeen": 14.444,
+        "lastSeen": 14.444,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          14.444
+        ]
+      },
+      {
+        "code": "text_occluded",
+        "severity": "info",
+        "time": 14.444,
+        "selector": "div.upi-apps-row > div:nth-of-type(2)",
+        "message": "Text is hidden beneath an opaque element.",
+        "rect": {
+          "left": 587.91,
+          "top": 800.3,
+          "right": 657.31,
+          "bottom": 820.3,
+          "width": 69.41,
+          "height": 20
+        },
+        "containerSelector": "#success-screen",
+        "text": "PhonePe",
+        "fixHint": "Give the text its own zone, raise its stacking order above the covering element, or mark intentional layering with data-layout-allow-occlusion.",
+        "coveredFraction": 1,
+        "dataAttributes": {
+          "data-hf-id": "hf-5hta"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 587.91,
+          "y": 800.3,
+          "width": 69.41,
+          "height": 20
+        },
+        "firstSeen": 14.444,
+        "lastSeen": 14.444,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          14.444
+        ]
+      },
+      {
+        "code": "text_occluded",
+        "severity": "info",
+        "time": 14.444,
+        "selector": "div.upi-apps-row > div:nth-of-type(3)",
+        "message": "Text is hidden beneath an opaque element.",
+        "rect": {
+          "left": 711.31,
+          "top": 800.3,
+          "right": 760.86,
+          "bottom": 820.3,
+          "width": 49.55,
+          "height": 20
+        },
+        "containerSelector": "#success-screen",
+        "text": "Paytm",
+        "fixHint": "Give the text its own zone, raise its stacking order above the covering element, or mark intentional layering with data-layout-allow-occlusion.",
+        "coveredFraction": 1,
+        "dataAttributes": {
+          "data-hf-id": "hf-h6hw"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 711.31,
+          "y": 800.3,
+          "width": 49.55,
+          "height": 20
+        },
+        "firstSeen": 14.444,
+        "lastSeen": 14.444,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          14.444
+        ]
+      },
+      {
+        "code": "text_occluded",
+        "severity": "info",
+        "time": 14.444,
+        "selector": "div.upi-apps-row > div:nth-of-type(4)",
+        "message": "Text is hidden beneath an opaque element.",
+        "rect": {
+          "left": 814.86,
+          "top": 800.3,
+          "right": 856.8,
+          "bottom": 820.3,
+          "width": 41.94,
+          "height": 20
+        },
+        "containerSelector": "#success-screen",
+        "text": "BHIM",
+        "fixHint": "Give the text its own zone, raise its stacking order above the covering element, or mark intentional layering with data-layout-allow-occlusion.",
+        "coveredFraction": 1,
+        "dataAttributes": {
+          "data-hf-id": "hf-38nf"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 814.86,
+          "y": 800.3,
+          "width": 41.94,
+          "height": 20
+        },
+        "firstSeen": 14.444,
+        "lastSeen": 14.444,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          14.444
+        ]
+      },
+      {
+        "code": "text_occluded",
+        "severity": "info",
+        "time": 14.444,
+        "selector": "#pay-btn > span:nth-of-type(1)",
+        "message": "Text is hidden beneath an opaque element.",
+        "rect": {
+          "left": 529.86,
+          "top": 877.3,
+          "right": 772.64,
+          "bottom": 904.3,
+          "width": 242.78,
+          "height": 27
+        },
+        "containerSelector": "#success-screen",
+        "text": "Pay ₹2,450.00 via UPI",
+        "fixHint": "Give the text its own zone, raise its stacking order above the covering element, or mark intentional layering with data-layout-allow-occlusion.",
+        "coveredFraction": 1,
+        "dataAttributes": {
+          "data-hf-id": "hf-gvkd"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 529.86,
+          "y": 877.3,
+          "width": 242.78,
+          "height": 27
+        },
+        "firstSeen": 14.444,
+        "lastSeen": 14.444,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          14.444
+        ]
+      }
+    ],
+    "duration": 20,
+    "samples": [
+      1.111,
+      3.333,
+      5.556,
+      7.778,
+      10,
+      12.222,
+      14.444,
+      16.667,
+      18.889
+    ],
+    "transitionSamples": [],
+    "transitionSamplesDropped": 0,
+    "tolerance": 2,
+    "totalIssueCount": 7,
+    "truncated": false
+  },
+  "motion": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "samples": 0
+  },
+  "contrast": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "samples": [
+      1.111,
+      5.556,
+      10,
+      14.444,
+      18.889
+    ],
+    "checked": 78,
+    "passed": 78
+  },
+  "craft": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 2,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "first_frame_empty",
+        "severity": "warning",
+        "message": "Frame 0 shows only the background, and the first frame is the thumbnail on social players: have the title or key image already on screen at 0 s instead of entering from nothing; see references/review.md.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0
+      },
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and 53 text elements stay under it for 0.5 s or more, the smallest \"Google Pay\" at 16 px: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "Google Pay",
+        "selector": "div.upi-apps-row > div:nth-of-type(1)",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 449.31,
+          "y": 815.46,
+          "width": 86.66,
+          "height": 19.65
+        },
+        "time": 10,
+        "times": [
+          0.25,
+          0.25,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.75,
+          0.75,
+          0.75,
+          0.75,
+          0.75,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1.125,
+          1.125,
+          1.125,
+          1.125,
+          1.125,
+          1.875,
+          4.125,
+          4.625,
+          4.625,
+          5,
+          5.375,
+          5.375,
+          5.375,
+          5.75,
+          5.75,
+          6.25,
+          6.25,
+          9.625,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10,
+          10.5,
+          10.5,
+          10.875,
+          10.875,
+          11.25,
+          11.25,
+          13.625,
+          13.625,
+          17,
+          17,
+          17,
+          17.5
+        ],
+        "fontPx": 15.72,
+        "floorPx": 28,
+        "seconds": 5.5,
+        "elements": [
+          {
+            "selector": "div.upi-apps-row > div:nth-of-type(1)",
+            "text": "Google Pay",
+            "fontPx": 15.72,
+            "time": 10,
+            "seconds": 5.5
+          },
+          {
+            "selector": "div.upi-apps-row > div:nth-of-type(2)",
+            "text": "PhonePe",
+            "fontPx": 15.72,
+            "time": 10,
+            "seconds": 5.5
+          },
+          {
+            "selector": "div.upi-apps-row > div:nth-of-type(3)",
+            "text": "Paytm",
+            "fontPx": 15.72,
+            "time": 10,
+            "seconds": 5.5
+          },
+          {
+            "selector": "div.upi-apps-row > div:nth-of-type(4)",
+            "text": "BHIM",
+            "fontPx": 15.72,
+            "time": 10,
+            "seconds": 5.5
+          },
+          {
+            "selector": "#algo-after > div:nth-of-type(2) > div:nth-of-type(3)",
+            "text": "✓ Double-precision math • Epsilon matched",
+            "fontPx": 17,
+            "time": 5.375,
+            "seconds": 4.125
+          },
+          {
+            "selector": "#success-screen > div:nth-of-type(4)",
+            "text": "📱 WhatsApp receipt sent to Aarav",
+            "fontPx": 17.6,
+            "time": 13.625,
+            "seconds": 1.875
+          },
+          {
+            "selector": "span.lbl",
+            "text": "Transfers",
+            "fontPx": 17.67,
+            "time": 5,
+            "seconds": 4.5
+          },
+          {
+            "selector": "#card-1 > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2)",
+            "text": "Villa & Scooters",
+            "fontPx": 17.68,
+            "time": 0.5,
+            "seconds": 3.5
+          },
+          {
+            "selector": "#card-4 > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2)",
+            "text": "Groceries & Drinks",
+            "fontPx": 17.68,
+            "time": 1.125,
+            "seconds": 2.875
+          },
+          {
+            "selector": "#card-2 > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2)",
+            "text": "Beach Shack Dinner",
+            "fontPx": 17.8,
+            "time": 0.75,
+            "seconds": 3.25
+          },
+          {
+            "selector": "#card-3 > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2)",
+            "text": "Watersports & Fuel",
+            "fontPx": 17.87,
+            "time": 1,
+            "seconds": 3
+          },
+          {
+            "selector": "#algo-before > div:nth-of-type(1) > span:nth-of-type(2)",
+            "text": "10 Chaotic Transfers",
+            "fontPx": 18,
+            "time": 4.625,
+            "seconds": 4.875
+          },
+          {
+            "selector": "#algo-after > div:nth-of-type(1) > span:nth-of-type(2)",
+            "text": "2 Clean Transfers",
+            "fontPx": 18,
+            "time": 5.375,
+            "seconds": 4.125
+          },
+          {
+            "selector": "#feat-1 > div:nth-of-type(2) > p:nth-of-type(1)",
+            "text": "Instant launch into Google Pay, PhonePe, or Paytm with pre-filled amount and recipient UPI ID.",
+            "fontPx": 18,
+            "time": 10.5,
+            "seconds": 5
+          },
+          {
+            "selector": "#feat-2 > div:nth-of-type(2) > p:nth-of-type(1)",
+            "text": "One settlement automatically confirms and reconciles all underlying group debts for that friend.",
+            "fontPx": 18,
+            "time": 10.875,
+            "seconds": 4.625
+          },
+          {
+            "selector": "#feat-3 > div:nth-of-type(2) > p:nth-of-type(1)",
+            "text": "Pre-formatted payment confirmations and polite reminders with zero awkwardness.",
+            "fontPx": 18,
+            "time": 11.25,
+            "seconds": 4.25
+          },
+          {
+            "selector": "#success-screen > div:nth-of-type(3)",
+            "text": "Net Handshake Confirmed",
+            "fontPx": 19.55,
+            "time": 13.625,
+            "seconds": 1.875
+          },
+          {
+            "selector": "div.upi-recipient",
+            "text": "Paying to Aarav Sharma (+91 98765 43210)",
+            "fontPx": 19.65,
+            "time": 10,
+            "seconds": 5.5
+          },
+          {
+            "selector": "#opt-1 > span:nth-of-type(1)",
+            "text": "1. Rohan pays Aarav",
+            "fontPx": 19.71,
+            "time": 5.75,
+            "seconds": 3.75
+          },
+          {
+            "selector": "#opt-1 > span:nth-of-type(2)",
+            "text": "₹2,450.00",
+            "fontPx": 19.71,
+            "time": 5.75,
+            "seconds": 3.75
+          },
+          {
+            "selector": "#opt-2 > span:nth-of-type(1)",
+            "text": "2. Sneha pays Priya",
+            "fontPx": 19.71,
+            "time": 6.25,
+            "seconds": 3.25
+          },
+          {
+            "selector": "#opt-2 > span:nth-of-type(2)",
+            "text": "₹1,850.00",
+            "fontPx": 19.71,
+            "time": 6.25,
+            "seconds": 3.25
+          },
+          {
+            "selector": "#scene1 > div:nth-of-type(1) > span:nth-of-type(1)",
+            "text": "🌴 Goa Trip 2026",
+            "fontPx": 19.86,
+            "time": 0.25,
+            "seconds": 3.75
+          },
+          {
+            "selector": "div.eyebrow.eyebrow-accent > span:nth-of-type(3)",
+            "text": "5 Friends",
+            "fontPx": 19.86,
+            "time": 0.25,
+            "seconds": 3.75
+          },
+          {
+            "selector": "#scene2 > div:nth-of-type(1) > span:nth-of-type(1)",
+            "text": "🧠 Algorithmic Harmony",
+            "fontPx": 20,
+            "time": 4.125,
+            "seconds": 5.375
+          },
+          {
+            "selector": "#scene3 > div:nth-of-type(1) > span:nth-of-type(1)",
+            "text": "⚡ Direct UPI Settlement",
+            "fontPx": 20,
+            "time": 9.625,
+            "seconds": 5.875
+          },
+          {
+            "selector": "#outro-badges > div:nth-of-type(1)",
+            "text": "⚡ Greedy Minimizer",
+            "fontPx": 20,
+            "time": 17,
+            "seconds": 3
+          },
+          {
+            "selector": "#outro-badges > div:nth-of-type(2)",
+            "text": "₹ UPI-First Settlement",
+            "fontPx": 20,
+            "time": 17,
+            "seconds": 3
+          },
+          {
+            "selector": "#outro-badges > div:nth-of-type(3)",
+            "text": "📱 WhatsApp Receipts",
+            "fontPx": 20,
+            "time": 17,
+            "seconds": 3
+          },
+          {
+            "selector": "#card-1 > div:nth-of-type(1) > div:nth-of-type(1)",
+            "text": "RV",
+            "fontPx": 21.61,
+            "time": 0.5,
+            "seconds": 3.5
+          },
+          {
+            "selector": "#card-1 > div:nth-of-type(2) > span:nth-of-type(1)",
+            "text": "Owes",
+            "fontPx": 21.61,
+            "time": 0.5,
+            "seconds": 3.5
+          },
+          {
+            "selector": "#card-1 > div:nth-of-type(2) > span:nth-of-type(2)",
+            "text": "₹4,200.00",
+            "fontPx": 21.61,
+            "time": 0.5,
+            "seconds": 3.5
+          },
+          {
+            "selector": "#card-4 > div:nth-of-type(1) > div:nth-of-type(1)",
+            "text": "PN",
+            "fontPx": 21.61,
+            "time": 1.125,
+            "seconds": 2.875
+          },
+          {
+            "selector": "#card-4 > div:nth-of-type(2) > span:nth-of-type(1)",
+            "text": "Owes",
+            "fontPx": 21.61,
+            "time": 1.125,
+            "seconds": 2.875
+          },
+          {
+            "selector": "#card-4 > div:nth-of-type(2) > span:nth-of-type(2)",
+            "text": "₹2,100.00",
+            "fontPx": 21.61,
+            "time": 1.125,
+            "seconds": 2.875
+          },
+          {
+            "selector": "#card-2 > div:nth-of-type(1) > div:nth-of-type(1)",
+            "text": "SP",
+            "fontPx": 21.76,
+            "time": 0.75,
+            "seconds": 3.25
+          },
+          {
+            "selector": "#card-2 > div:nth-of-type(2) > span:nth-of-type(1)",
+            "text": "Owes",
+            "fontPx": 21.76,
+            "time": 0.75,
+            "seconds": 3.25
+          },
+          {
+            "selector": "#card-2 > div:nth-of-type(2) > span:nth-of-type(2)",
+            "text": "₹1,850.00",
+            "fontPx": 21.76,
+            "time": 0.75,
+            "seconds": 3.25
+          },
+          {
+            "selector": "#card-3 > div:nth-of-type(1) > div:nth-of-type(1)",
+            "text": "AS",
+            "fontPx": 21.84,
+            "time": 1,
+            "seconds": 3
+          },
+          {
+            "selector": "div.balance-pill.balance-credit > span:nth-of-type(1)",
+            "text": "Is owed",
+            "fontPx": 21.84,
+            "time": 1,
+            "seconds": 3
+          },
+          {
+            "selector": "div.balance-pill.balance-credit > span:nth-of-type(2)",
+            "text": "₹6,050.00",
+            "fontPx": 21.84,
+            "time": 1,
+            "seconds": 3
+          },
+          {
+            "selector": "#pay-btn > span:nth-of-type(1)",
+            "text": "Pay ₹2,450.00 via UPI",
+            "fontPx": 22.88,
+            "time": 10,
+            "seconds": 5.5
+          },
+          {
+            "selector": "#card-1 > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+            "text": "Rohan Verma",
+            "fontPx": 23.57,
+            "time": 0.5,
+            "seconds": 3.5
+          },
+          {
+            "selector": "#card-4 > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+            "text": "Priya Nair",
+            "fontPx": 23.57,
+            "time": 1.125,
+            "seconds": 2.875
+          },
+          {
+            "selector": "#card-2 > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+            "text": "Sneha Patel",
+            "fontPx": 23.73,
+            "time": 0.75,
+            "seconds": 3.25
+          },
+          {
+            "selector": "#card-3 > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+            "text": "Aarav Sharma",
+            "fontPx": 23.83,
+            "time": 1,
+            "seconds": 3
+          },
+          {
+            "selector": "#algo-before > div:nth-of-type(1) > span:nth-of-type(1)",
+            "text": "Before Minimizer",
+            "fontPx": 24,
+            "time": 4.625,
+            "seconds": 4.875
+          },
+          {
+            "selector": "#algo-after > div:nth-of-type(1) > span:nth-of-type(1)",
+            "text": "Bharat Dues Optimized",
+            "fontPx": 24,
+            "time": 5.375,
+            "seconds": 4.125
+          },
+          {
+            "selector": "#feat-1 > div:nth-of-type(2) > h4:nth-of-type(1)",
+            "text": "Dynamic UPI Deep-Links",
+            "fontPx": 24,
+            "time": 10.5,
+            "seconds": 5
+          },
+          {
+            "selector": "#feat-2 > div:nth-of-type(2) > h4:nth-of-type(1)",
+            "text": "Global Netting Handshake",
+            "fontPx": 24,
+            "time": 10.875,
+            "seconds": 4.625
+          },
+          {
+            "selector": "#feat-3 > div:nth-of-type(2) > h4:nth-of-type(1)",
+            "text": "1-Tap WhatsApp Receipts",
+            "fontPx": 24,
+            "time": 11.25,
+            "seconds": 4.25
+          },
+          {
+            "selector": "#outro-cta",
+            "text": "bharat-dues.web.app",
+            "fontPx": 24,
+            "time": 17.5,
+            "seconds": 2.5
+          },
+          {
+            "selector": "#s1-bubble",
+            "text": "\"Bhai kisko kitna transfer karna hai?!\"",
+            "fontPx": 24.64,
+            "time": 1.875,
+            "seconds": 2.125
+          }
+        ]
+      }
+    ],
+    "enabled": true,
+    "step": 0.125,
+    "samples": 160
+  },
+  "hdr": {
+    "autoPromotion": null,
+    "inspection": "available"
+  },
+  "snapshots": {
+    "enabled": false,
+    "files": [],
+    "times": [],
+    "findingFiles": []
+  }
+}
