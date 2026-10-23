@@ -23,6 +23,7 @@ import '../widgets/app_shell_widgets.dart';
 import 'edit_group_screen.dart';
 import '../services/gemini_service.dart';
 import '../widgets/gemini_ai_dialogs.dart';
+import '../utils/ocr_helper.dart';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
@@ -450,29 +451,46 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
 
   // ─── Add expense bottom sheet ─────────────────────────────────────────
 
-  Future<void> _openAddEditExpense(AppState appState, List<GroupMember> resolvedMembers, {Expense? initialExpense, GeminiSplitPlan? initialPlan}) async {
+  Future<void> _openAddEditExpense(
+    AppState appState, 
+    List<GroupMember> resolvedMembers, {
+    Expense? initialExpense, 
+    GeminiSplitPlan? initialPlan,
+    OcrResult? initialOcrResult,
+  }) async {
     _convertedAmount = initialExpense?.baseAmount;
-    final descCtrl = TextEditingController(text: initialPlan?.description ?? initialExpense?.description ?? '');
-    final initialAmount = initialPlan?.amount ?? initialExpense?.amount ?? 0;
+    final descCtrl = TextEditingController(
+      text: initialOcrResult?.description ?? initialPlan?.description ?? initialExpense?.description ?? '',
+    );
+    final initialAmount = initialOcrResult?.amount ?? initialPlan?.amount ?? initialExpense?.amount ?? 0;
     final amountCtrl = TextEditingController(text: initialAmount > 0 ? formatAmount(initialAmount) : '');
     final formKey = GlobalKey<FormState>();
-    String payerId = initialPlan?.payerMemberId ?? initialExpense?.payerId ?? resolvedMembers.first.id;
-    SplitMode splitMode = (initialPlan?.customShares != null && initialPlan!.customShares!.isNotEmpty)
+    String payerId = (initialOcrResult?.payerMemberId != null && resolvedMembers.any((m) => m.id == initialOcrResult!.payerMemberId))
+        ? initialOcrResult!.payerMemberId!
+        : (initialPlan?.payerMemberId ?? initialExpense?.payerId ?? resolvedMembers.first.id);
+    
+    SplitMode splitMode = ((initialOcrResult?.customShares != null && initialOcrResult!.customShares!.isNotEmpty) || (initialPlan?.customShares != null && initialPlan!.customShares!.isNotEmpty))
         ? SplitMode.exact
         : (initialExpense == null ? SplitMode.equal : SplitMode.exact);
     
     // Track who is included in this split
-    final includedIds = initialPlan != null
-        ? initialPlan.participatingMemberIds.toSet()
-        : (initialExpense == null 
-            ? resolvedMembers.map((m) => m.id).toSet() 
-            : initialExpense.shares.entries.where((e) => e.value > 0).map((e) => e.key).toSet());
+    final includedIds = initialOcrResult != null
+        ? (initialOcrResult.participatingMemberIds.isNotEmpty 
+            ? initialOcrResult.participatingMemberIds.where((id) => resolvedMembers.any((m) => m.id == id)).toSet() 
+            : resolvedMembers.map((m) => m.id).toSet())
+        : (initialPlan != null
+            ? initialPlan.participatingMemberIds.where((id) => resolvedMembers.any((m) => m.id == id)).toSet()
+            : (initialExpense == null 
+                ? resolvedMembers.map((m) => m.id).toSet() 
+                : initialExpense.shares.entries.where((e) => e.value > 0).map((e) => e.key).toSet()));
 
     final shareControllers = {
       for (final m in resolvedMembers) m.id: TextEditingController(
-        text: initialPlan?.customShares?[m.id] != null
-            ? formatAmount(initialPlan!.customShares![m.id]!)
-            : (initialExpense?.shares[m.id] != null ? formatAmount(initialExpense!.shares[m.id]!) : ''),
+        text: initialOcrResult?.customShares?[m.id] != null
+            ? formatAmount(initialOcrResult!.customShares![m.id]!)
+            : (initialPlan?.customShares?[m.id] != null
+                ? formatAmount(initialPlan!.customShares![m.id]!)
+                : (initialExpense?.shares[m.id] != null ? formatAmount(initialExpense!.shares[m.id]!) : '')),
       ),
     };
     final pctControllers = {
@@ -487,7 +505,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
     };
 
     final initialTotal = double.tryParse(amountCtrl.text.trim()) ?? 0.0;
-    if ((initialExpense == null || initialPlan != null) && initialTotal > 0 && splitMode == SplitMode.equal) {
+    if ((initialExpense == null || initialPlan != null || initialOcrResult != null) && initialTotal > 0 && splitMode == SplitMode.equal) {
       final includedMembers = resolvedMembers.where((m) => includedIds.contains(m.id)).toList();
       final initialShares = buildEqualShareMap(total: initialTotal, members: includedMembers);
       for (final m in resolvedMembers) {
@@ -495,8 +513,8 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
       }
     }
 
-    ExpenseCategory selectedCategory = initialPlan?.category ?? initialExpense?.category ?? ExpenseCategory.other;
-    bool isCategoryManual = initialPlan != null || initialExpense != null;
+    ExpenseCategory selectedCategory = initialOcrResult?.category ?? initialPlan?.category ?? initialExpense?.category ?? ExpenseCategory.other;
+    bool isCategoryManual = initialOcrResult != null || initialPlan != null || initialExpense != null;
     String selectedCurrency = initialExpense?.currency ?? _group.currency;
 
     await showModalBottomSheet<void>(
@@ -644,6 +662,9 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                 onPressed: () {
                                   showReceiptScanOptionsSheet(
                                     context,
+                                    members: resolvedMembers,
+                                    groupName: _group.name,
+                                    currentUserId: appState.currentUserId,
                                     onScanned: (result) {
                                       setSheetState(() {
                                         if (result.description != null && result.description!.isNotEmpty) {
@@ -657,6 +678,22 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                           isCategoryManual = true;
                                         } else if (descCtrl.text.isNotEmpty) {
                                           selectedCategory = ExpenseCategory.detect(descCtrl.text);
+                                        }
+                                        if (result.payerMemberId != null && resolvedMembers.any((m) => m.id == result.payerMemberId)) {
+                                          payerId = result.payerMemberId!;
+                                        }
+                                        if (result.participatingMemberIds.isNotEmpty) {
+                                          includedIds.clear();
+                                          includedIds.addAll(result.participatingMemberIds.where((id) => resolvedMembers.any((m) => m.id == id)));
+                                        }
+                                        if (result.customShares != null && result.customShares!.isNotEmpty) {
+                                          splitMode = SplitMode.exact;
+                                          for (final m in resolvedMembers) {
+                                            final shareVal = result.customShares![m.id] ?? 0.0;
+                                            shareControllers[m.id]?.text = shareVal > 0 ? formatAmount(shareVal) : '';
+                                          }
+                                        } else {
+                                          splitMode = SplitMode.equal;
                                         }
                                         recomputeShares();
                                       });
@@ -1550,6 +1587,27 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                       floatingActionButton: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          FloatingActionButton(
+                            heroTag: 'ai_scan_receipt_fab',
+                            mini: true,
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF0077A8),
+                            elevation: 3,
+                            tooltip: 'Scan Receipt / Bill (Google AI)',
+                            onPressed: () {
+                              showReceiptScanOptionsSheet(
+                                context,
+                                members: resolvedMembers,
+                                groupName: _group.name,
+                                currentUserId: appState.currentUserId,
+                                onScanned: (result) {
+                                  _openAddEditExpense(appState, resolvedMembers, initialOcrResult: result);
+                                },
+                              );
+                            },
+                            child: const Icon(Icons.document_scanner_outlined, size: 20),
+                          ),
+                          const SizedBox(width: 8),
                           FloatingActionButton.extended(
                             heroTag: 'ai_smart_split_fab',
                             backgroundColor: Colors.white,

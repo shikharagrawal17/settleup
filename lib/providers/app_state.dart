@@ -25,6 +25,7 @@ class AppState extends ChangeNotifier {
   Map<String, String> _localContactMap = {};
   String? _pendingJoinGroupId;
 
+  String? get currentUserId => _auth.currentUser?.uid;
   String? get pendingJoinGroupId => _pendingJoinGroupId;
   set pendingJoinGroupId(String? val) {
     _pendingJoinGroupId = val;

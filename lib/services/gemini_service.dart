@@ -26,21 +26,39 @@ class ReceiptLineItem {
 class GeminiReceiptResult {
   final double? totalAmount;
   final String? merchantName;
+  final String? description;
   final String? date;
   final ExpenseCategory? category;
   final List<ReceiptLineItem> items;
   final double? tax;
   final String? rawSummary;
+  final String? payerMemberId;
+  final String? payerName;
+  final List<String> participatingMemberIds;
+  final String splitType;
+  final Map<String, double>? customShares;
+  final String? gstin;
+  final String? upiRef;
+  final String? explanation;
   final String modelUsed;
 
   const GeminiReceiptResult({
     this.totalAmount,
     this.merchantName,
+    this.description,
     this.date,
     this.category,
     this.items = const [],
     this.tax,
     this.rawSummary,
+    this.payerMemberId,
+    this.payerName,
+    this.participatingMemberIds = const [],
+    this.splitType = 'equal',
+    this.customShares,
+    this.gstin,
+    this.upiRef,
+    this.explanation,
     this.modelUsed = 'gemini-3.5-flash',
   });
 }
@@ -161,9 +179,13 @@ class GeminiService {
   }
 
   /// Multimodal Receipt & Bill Analyzer using active Google AI Studio models
+  /// with rich group context for maximum automated field extraction.
   static Future<GeminiReceiptResult> analyzeReceipt({
     required Uint8List imageBytes,
     String mimeType = 'image/jpeg',
+    List<GroupMember> members = const [],
+    String? groupName,
+    String? currentUserId,
   }) async {
     final apiKey = await getApiKey();
     if (apiKey == null || apiKey.isEmpty) {
@@ -172,17 +194,36 @@ class GeminiService {
       );
     }
 
-    const prompt = '''
-You are an expert financial receipt auditor and invoice parsing assistant.
-Analyze this receipt or bill image and extract the key details in strict JSON format.
+    final membersJson = members.map((m) => {
+      'id': m.id,
+      'name': m.name,
+      'isSelf': m.isSelf,
+    }).toList();
+
+    final prompt = '''
+You are an expert financial receipt auditor and expense-splitting intelligence assistant for Bharat Dues / SettleUp.
+Analyze this receipt, bill, or UPI payment screenshot and extract maximum context and details in strict JSON format.
+
+Group Context:
+- Group Name: "${groupName ?? 'General Group'}"
+- Group Members: ${jsonEncode(membersJson)}
+- Currency: INR (₹)
 
 JSON Schema:
 {
-  "merchant": "Name of store, restaurant, or vendor (e.g. Starbucks, Swiggy, D-Mart)",
+  "merchant": "Name of store, restaurant, vendor, or receiver (e.g. Starbucks, Swiggy, D-Mart, Shell)",
+  "description": "Clear 3-5 word description of the expense (e.g. Team Dinner at Starbucks, Groceries at D-Mart)",
   "totalAmount": 1250.50,
   "date": "YYYY-MM-DD or as printed",
   "category": "One of: food, drinks, groceries, transport, travel, stay, shopping, entertainment, rent, bills, medical, education, other",
+  "payerMemberId": "id of member from Group Members list who paid, or null if uncertain",
+  "payerName": "name of payer",
+  "splitType": "equal or exact",
+  "participatingMemberIds": ["id1", "id2"],
+  "customShares": { "id1": 600.0, "id2": 650.50 },
   "tax": 50.0,
+  "gstin": "GST number if printed, or null",
+  "upiRef": "UPI reference / UTR number if printed, or null",
   "items": [
     {
       "name": "Item description",
@@ -190,13 +231,20 @@ JSON Schema:
       "quantity": 1
     }
   ],
-  "summary": "Brief 1-line note of what was purchased"
+  "summary": "Brief 1-line breakdown explaining the expense and how it was split"
 }
 
-Important:
-- totalAmount MUST be a positive number reflecting the final bill / total payable amount (including taxes).
-- If currency is not explicitly printed, assume INR.
-- Return valid JSON only.
+Important Instructions:
+1. totalAmount MUST be a positive number reflecting the final bill / total payable amount (including taxes, discounts, delivery fees).
+2. Payer Detection:
+   - Check if customer name, cardholder name, UPI sender name ("From: XYZ", "Paid by: ABC"), or account name matches any Group Member.
+   - If user paid via their own device (UPI screenshot showing "Paid successfully to...", "Debit from XXXX"), prefer member with isSelf == true.
+   - If fuzzy match succeeds, set payerMemberId to that member's ID.
+3. Split Ratio & Participants:
+   - If bill indicates specific items for specific members, populate customShares for those member IDs so their sum equals totalAmount, and set splitType = "exact".
+   - Otherwise, default splitType to "equal" and include ALL members in participatingMemberIds.
+4. If currency is not explicitly printed, assume INR.
+5. Return valid JSON only.
 ''';
 
     try {
@@ -228,6 +276,7 @@ Important:
       }
 
       final merchant = data['merchant'] as String?;
+      final description = data['description'] as String? ?? merchant ?? 'Receipt Expense';
       final date = data['date'] as String?;
       final categoryStr = (data['category'] as String?)?.toLowerCase();
 
@@ -235,8 +284,50 @@ Important:
       if (categoryStr != null) {
         category = ExpenseCategory.values.firstWhere(
           (c) => c.name.toLowerCase() == categoryStr,
-          orElse: () => ExpenseCategory.detect(merchant ?? 'expense'),
+          orElse: () => ExpenseCategory.detect(description),
         );
+      } else {
+        category = ExpenseCategory.detect(description);
+      }
+
+      // Match Payer against group members
+      String? payerId = data['payerMemberId'] as String?;
+      final String? payerName = data['payerName'] as String?;
+      if (payerId == null || !members.any((m) => m.id == payerId)) {
+        if (payerName != null && payerName.isNotEmpty) {
+          final matched = members.where(
+            (m) => m.name.toLowerCase().contains(payerName.toLowerCase()) ||
+                   payerName.toLowerCase().contains(m.name.toLowerCase()),
+          ).firstOrNull;
+          payerId = matched?.id;
+        }
+      }
+
+      // Default payer to isSelf if ambiguous
+      payerId ??= members.where((m) => m.isSelf).firstOrNull?.id;
+
+      // Match participating members
+      final List<dynamic> rawParticipants = data['participatingMemberIds'] as List<dynamic>? ?? [];
+      List<String> participatingIds = rawParticipants
+          .map((e) => e.toString())
+          .where((id) => members.any((m) => m.id == id))
+          .toList();
+
+      if (participatingIds.isEmpty && members.isNotEmpty) {
+        participatingIds = members.map((m) => m.id).toList();
+      }
+
+      final splitType = data['splitType'] as String? ?? 'equal';
+
+      // Custom shares if itemized or unequal
+      Map<String, double>? customShares;
+      if (data['customShares'] is Map) {
+        customShares = {};
+        (data['customShares'] as Map).forEach((k, v) {
+          if (v is num && members.any((m) => m.id == k.toString())) {
+            customShares![k.toString()] = v.toDouble();
+          }
+        });
       }
 
       final itemsRaw = data['items'] as List<dynamic>? ?? [];
@@ -253,14 +344,27 @@ Important:
         }
       }
 
+      final gstin = data['gstin'] as String?;
+      final upiRef = data['upiRef'] as String?;
+      final summary = data['summary'] as String?;
+
       return GeminiReceiptResult(
         totalAmount: totalAmount,
         merchantName: merchant,
+        description: description,
         date: date,
         category: category,
         items: items,
         tax: tax,
-        rawSummary: data['summary'] as String?,
+        rawSummary: summary,
+        payerMemberId: payerId,
+        payerName: members.where((m) => m.id == payerId).firstOrNull?.name ?? payerName,
+        participatingMemberIds: participatingIds,
+        splitType: splitType,
+        customShares: customShares,
+        gstin: gstin,
+        upiRef: upiRef,
+        explanation: summary,
         modelUsed: result.modelUsed,
       );
     } catch (e) {

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/expense.dart';
+import '../models/group_member.dart';
 import '../services/gemini_service.dart';
 
 class OcrResult {
@@ -10,6 +11,14 @@ class OcrResult {
   final String? description;
   final ExpenseCategory? category;
   final List<ReceiptLineItem> items;
+  final String? payerMemberId;
+  final String? payerName;
+  final List<String> participatingMemberIds;
+  final String splitType;
+  final Map<String, double>? customShares;
+  final String? gstin;
+  final String? upiRef;
+  final String? explanation;
   final String? provider;
 
   OcrResult({
@@ -18,6 +27,14 @@ class OcrResult {
     this.description,
     this.category,
     this.items = const [],
+    this.payerMemberId,
+    this.payerName,
+    this.participatingMemberIds = const [],
+    this.splitType = 'equal',
+    this.customShares,
+    this.gstin,
+    this.upiRef,
+    this.explanation,
     this.provider,
   });
 }
@@ -31,9 +48,13 @@ class OcrHelper {
   }
 
   /// Scans receipt using Google Gemini 3.5 Flash multimodal vision
-  /// with automatic fallback to ML Kit if offline or key is missing.
+  /// with rich group context (members, payer, split ratios, category),
+  /// and automatically falls back to local Google ML Kit if offline or key is missing.
   static Future<OcrResult?> scanReceipt({
     ImageSource source = ImageSource.camera,
+    List<GroupMember> members = const [],
+    String? groupName,
+    String? currentUserId,
   }) async {
     try {
       final ImagePicker picker = ImagePicker();
@@ -47,21 +68,32 @@ class OcrHelper {
       final Uint8List bytes = await image.readAsBytes();
       final String mimeType = image.mimeType ?? 'image/jpeg';
 
-      // 1. Attempt High-Precision Gemini 3.5 Flash analysis
+      // 1. Attempt High-Precision Gemini 3.5 Flash analysis with Full Group Context
       final apiKey = await GeminiService.getApiKey();
       if (apiKey != null && apiKey.isNotEmpty) {
         try {
           final geminiResult = await GeminiService.analyzeReceipt(
             imageBytes: bytes,
             mimeType: mimeType,
+            members: members,
+            groupName: groupName,
+            currentUserId: currentUserId,
           );
 
           return OcrResult(
             amount: geminiResult.totalAmount,
             date: geminiResult.date,
-            description: geminiResult.merchantName ?? geminiResult.rawSummary,
+            description: geminiResult.description ?? geminiResult.merchantName ?? geminiResult.rawSummary,
             category: geminiResult.category,
             items: geminiResult.items,
+            payerMemberId: geminiResult.payerMemberId,
+            payerName: geminiResult.payerName,
+            participatingMemberIds: geminiResult.participatingMemberIds,
+            splitType: geminiResult.splitType,
+            customShares: geminiResult.customShares,
+            gstin: geminiResult.gstin,
+            upiRef: geminiResult.upiRef,
+            explanation: geminiResult.explanation,
             provider: 'Google Gemini 3.5 Flash',
           );
         } catch (geminiError) {
@@ -69,7 +101,7 @@ class OcrHelper {
         }
       }
 
-      // 2. Fallback to Google ML Kit (Mobile only)
+      // 2. Fast Fallback to Google ML Kit (Mobile only)
       if (kIsWeb) {
         debugPrint('[OcrHelper] Web platform requires Gemini API key for OCR.');
         return null;
@@ -121,11 +153,16 @@ class OcrHelper {
         if (maxVal > 0) detectedAmount = maxVal;
       }
 
+      final defaultPayer = members.where((m) => m.isSelf).firstOrNull?.id ?? members.firstOrNull?.id;
+
       return OcrResult(
         amount: detectedAmount,
         date: detectedDate,
         description: detectedDescription,
         category: detectedDescription != null ? ExpenseCategory.detect(detectedDescription) : null,
+        payerMemberId: defaultPayer,
+        participatingMemberIds: members.map((m) => m.id).toList(),
+        splitType: 'equal',
         provider: 'Google ML Kit',
       );
     } catch (e) {

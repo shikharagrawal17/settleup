@@ -156,8 +156,12 @@ Future<void> showGeminiApiKeyDialog(BuildContext context) async {
 }
 
 /// Bottom sheet to choose between Camera, Gallery, and Gemini Settings for receipt OCR.
+/// Takes group context (members, group name) to auto-fill payer, category, and split ratios.
 Future<void> showReceiptScanOptionsSheet(
   BuildContext context, {
+  List<GroupMember> members = const [],
+  String? groupName,
+  String? currentUserId,
   required Function(OcrResult result) onScanned,
 }) async {
   final hasKey = (await GeminiService.getApiKey() ?? '').isNotEmpty;
@@ -196,17 +200,19 @@ Future<void> showReceiptScanOptionsSheet(
                 child: const Icon(Icons.document_scanner_rounded, color: Colors.blueAccent, size: 22),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Scan Bill or Receipt',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      'AI reads total, merchant name & line items',
-                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                      hasKey 
+                        ? 'Google AI auto-fills payer, category & split ratios' 
+                        : 'Fast local OCR (Add Gemini key for deep context)',
+                      style: const TextStyle(fontSize: 12, color: Colors.black54),
                     ),
                   ],
                 ),
@@ -217,7 +223,7 @@ Future<void> showReceiptScanOptionsSheet(
                   color: hasKey ? Colors.green : Colors.orange,
                   size: 20,
                 ),
-                tooltip: hasKey ? 'Gemini Key Configured' : 'Configure Gemini Key',
+                tooltip: hasKey ? 'Google AI Key Active' : 'Configure Google AI Key',
                 onPressed: () async {
                   Navigator.pop(sheetCtx);
                   await showGeminiApiKeyDialog(context);
@@ -236,11 +242,18 @@ Future<void> showReceiptScanOptionsSheet(
               child: const Icon(Icons.camera_alt_outlined, color: Colors.indigo),
             ),
             title: const Text('Take Photo (Camera)', style: TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: const Text('Point camera directly at paper invoice'),
+            subtitle: const Text('Point camera directly at paper invoice or bill'),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onTap: () async {
               Navigator.pop(sheetCtx);
-              _executeScan(context, ImageSource.camera, onScanned);
+              _executeScan(
+                context, 
+                ImageSource.camera, 
+                members: members,
+                groupName: groupName,
+                currentUserId: currentUserId,
+                onScanned: onScanned,
+              );
             },
           ),
           const SizedBox(height: 8),
@@ -254,11 +267,18 @@ Future<void> showReceiptScanOptionsSheet(
               child: const Icon(Icons.photo_library_outlined, color: Colors.teal),
             ),
             title: const Text('Choose from Photos / Gallery', style: TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: const Text('Select screenshot or downloaded receipt'),
+            subtitle: const Text('Select UPI screenshot, Swiggy/Zomato, or store bill'),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onTap: () async {
               Navigator.pop(sheetCtx);
-              _executeScan(context, ImageSource.gallery, onScanned);
+              _executeScan(
+                context, 
+                ImageSource.gallery, 
+                members: members,
+                groupName: groupName,
+                currentUserId: currentUserId,
+                onScanned: onScanned,
+              );
             },
           ),
           const SizedBox(height: 16),
@@ -270,9 +290,12 @@ Future<void> showReceiptScanOptionsSheet(
 
 Future<void> _executeScan(
   BuildContext context,
-  ImageSource source,
-  Function(OcrResult result) onScanned,
-) async {
+  ImageSource source, {
+  List<GroupMember> members = const [],
+  String? groupName,
+  String? currentUserId,
+  required Function(OcrResult result) onScanned,
+}) async {
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(
       content: Row(
@@ -283,14 +306,19 @@ Future<void> _executeScan(
             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
           ),
           SizedBox(width: 12),
-          Text('Processing receipt with Google AI...'),
+          Text('Extracting context & details with Google AI...'),
         ],
       ),
-      duration: Duration(seconds: 4),
+      duration: Duration(seconds: 5),
     ),
   );
 
-  final result = await OcrHelper.scanReceipt(source: source);
+  final result = await OcrHelper.scanReceipt(
+    source: source,
+    members: members,
+    groupName: groupName,
+    currentUserId: currentUserId,
+  );
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
@@ -299,10 +327,15 @@ Future<void> _executeScan(
     final providerText = result.provider ?? 'AI';
     final desc = result.description ?? 'Receipt';
     final amt = result.amount != null ? '₹${result.amount!.toStringAsFixed(2)}' : '';
+    final payerInfo = result.payerName != null ? ' • Paid by ${result.payerName}' : '';
+    final splitInfo = result.participatingMemberIds.isNotEmpty 
+        ? ' • Split across ${result.participatingMemberIds.length} members'
+        : '';
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: Colors.green.shade800,
-        content: Text('✓ Scanned with $providerText: $desc $amt'),
+        content: Text('✓ $providerText: $desc ($amt)$payerInfo$splitInfo'),
       ),
     );
   } else {
