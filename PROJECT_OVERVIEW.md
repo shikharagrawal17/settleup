@@ -1,53 +1,52 @@
-# Bharat Dues: Project Architecture & Status
+# 📊 Bharat Dues — Project Overview & Architecture
 
-This document provides a distilled overview of the system state, design decisions, and architectural implementation for **Bharat Dues**.
+## 🎯 Executive Summary
+**Bharat Dues** is a cross-platform fintech solution designed to eliminate friction from group finances in India. Combining **Flutter**, **Firebase**, and **Google Gemini 3.5 Flash**, it addresses the core pain points of traditional expense splitters: tedious manual bill typing, complicated debt graphs, awkward payment reminders, and fragmented UPI settlement flows.
 
-## 核心 (Core) Architecture
-- **Tech Stack**: Flutter + Firebase (Firestore/Auth/Messaging).
-- **Multi-Platform Support**: Optimized for **Android**, **iOS**, and **Web (Wasm/PWA)**.
-- **Financial Precision**: Uses a **double-precision** system with **Epsilon Validation** (`< 0.01`) for consistent multi-member splitting and settlement tracking.
-- **Authentication & Identity**: 
-  - **Google Login**: Primary OAuth-based sign-in.
-  - **Identity Linking**: Automatic mapping of legacy manual IDs to registered UIDs.
-  - **Phone-First Discovery**: Real-time group visibility for invited members via phone number normalization and indexing in the `registries` collection.
-- **Data Model (Firestore)**:
-  - `groups/{groupId}`: Shared-ledger document with members, analytics, and activity trails.
-  - `groups/{groupId}/settlements`: High-trust payment records (Pending -> Confirmed/Disputed).
-  - `registries/{phoneKey}`: Lookup for mapping invitation phone numbers to active UIDs.
+---
 
-## 🛠️ Key Features & Logic
-1. **Premium Fintech UI**: High-performance Light Theme with glassmorphic surfaces and vibrant blue accents (`#00B9F1`).
-2. **Cross-Platform Join Links**: Implements a robust invitation system using production-grade join URLs (`https://bharat-dues.web.app/#/?join=...`) to onboard members onto existing groups.
-3. **Unified Financial Dashboard**:
-   - **Friends Tab**: Aggregates net balances across all groups.
-   - **Terminology Audit**: Standardized UI copy using "Owes" and "Is owed" for better financial clarity.
-   - **Global Netting Architecture**: Recording a global receipt automatically confirms all underlying group-level transactions, significantly reducing UI noise and "pending" notifications.
-4. **Advanced Settlement Engine**:
-   - **Handshake Lifecycle**: Every settlement (Global or Group-level) requires a mutual handshake. Receiver confirms receipt to finalize the balance.
-   - **WhatsApp Verification**: Payers can trigger an automated WhatsApp notification to the receiver immediately after recording a payment, prompting them to confirm the pending receipt.
-   - **Bidirectional UPI**: Integrated deep-linking and dynamic QR generation for inbound and outbound payments.
-5. **High-Trust Activity Tab**:
-   - **Interactive Feed**: Log entries for recorded payments include inline "Confirm Receipt" buttons for the receiver.
-   - **Granular Auditing**: Real-time tracking of confirmations, disputes, and deletions with distinct visual indicators and identity-aware role verification.
-   - **Identity Resilience**: All access and confirmation checks use a hybrid logic (UID + Manual Identifier) to ensure seamless operation regardless of member registration status.
-6. **WhatsApp Automation**: Formatted sharing of payment requests and reminders with friend-specific balance details.
-7. **Precision Expense Logic**: 
-   - **Split Modes**: Equal, Percentage, Shares, and Exact Amount.
-   - **Cent-Based Rounding**: Ensures `Total == sum(Shares)` within ₹0.01 tolerance across any number of members.
+## 🏛️ System Architecture
 
-## 🛡️ Security & Integrity
-- **Membership Isolation**: Firestore Rules restrict data access based on the `memberIdentifiers` array.
-- **Soft Deletes**: Group and expense deletion with full state restoration.
-- **Identity Integrity**: Friends are distinguished by UID or Normalized Phone, preventing balance merging for users with identical names.
+```mermaid
+graph TD
+    A[Client UI - Flutter Multi-Platform] --> B[AppState - Provider Realtime Engine]
+    A --> C[GeminiService - Google AI Studio]
+    C -->|Multimodal Image Analysis| D[Gemini 3.5 Flash OCR]
+    C -->|Natural Language Parser| E[Gemini 3.5 Flash Agent]
+    B --> F[Firebase Auth - Google One-Tap & Phone]
+    B --> G[Cloud Firestore - Realtime Shared Ledger]
+    B --> H[UPI Helper - Dynamic QR & Deep-Links]
+```
 
-## 📂 Architecture Map
-- `lib/providers/app_state.dart`: Single Source of Truth; handles Firestore transactions and identity-linking.
-- `lib/screens/home_screen.dart`: Global Financial Dashboard and Activity trails.
-- `lib/utils/settlement_helper.dart`: The mathematical core for debt simplification.
-- `lib/utils/upi_helper.dart`: Standardized UPI intent generator.
+### 1. Presentation Layer (Flutter Multiplatform)
+- **`app_shell.dart`**: Unified navigation managing Global Dashboard (Friends & Activity tabs) and Group screens.
+- **`group_settlement_screen.dart`**: The core ledger interface featuring live member balances, debt simplification cards, expense lists, and the **AI Split** FAB.
+- **`gemini_ai_dialogs.dart`**: Modern Material 3 bottom sheets for conversational expense prompts, camera/gallery receipt scanning, and Google AI Studio key configuration.
 
-## 🚀 Status
-- **Web/PWA**: Fully deployed at [bharat-dues.web.app](https://bharat-dues.web.app) with optimized assets and manifest.
-- **Android**: Verified with `com.example.bharat_dues` package and multi-app `<queries>` for deep-linking.
-- **iOS**: Configured with `com.example.bharatDues` bundle and signed with high-trust URL schemes.
-- **Production-Ready**: Identity-aware, precision-safe, and rebranded with a unified logo and design language.
+### 2. AI Intelligence Layer (`gemini_service.dart`)
+- **Multimodal Receipt Parsing**:
+  - Encodes receipt images to bytes (`DataPart('image/jpeg', bytes)`).
+  - Prompts `gemini-3.5-flash` with strict JSON schema.
+  - Automatically maps extracted vendor details, line items, and totals into `Expense` model objects.
+- **Conversational Split Parsing**:
+  - Ingests free-form text or voice transcripts.
+  - Injects current group roster into context.
+  - Returns fuzzy-matched payer, participant IDs, split mode (equal vs exact), and category.
+- **Resilient Fallback Engine**:
+  - Prioritizes `gemini-3.5-flash` ➔ `gemini-3.6-flash` ➔ `gemini-3.8-flash`.
+
+### 3. Business Logic & State Layer (`app_state.dart`)
+- Stream-based reactivity with Firestore snapshots.
+- Greedy Debt Simplification algorithm reducing N-way transactions to minimal settlements.
+- Double-precision financial calculation engine with epsilon validation (`< 0.01`).
+
+### 4. Settlement & Payments (`upi_helper.dart`)
+- Launches native UPI apps (`gpay`, `phonepe`, `paytm`, `cred`) using standardized `upi://pay` intents.
+- Generates on-the-fly dynamic UPI QR codes using `qr_flutter` encoded with exact rupee amounts.
+
+---
+
+## 🔒 Security & Data Integrity
+- **Firestore Security Rules**: Role-based group access ensuring only validated group participants can read/write ledger entries.
+- **Local Key Storage**: API keys stored client-side via encrypted `SharedPreferences`, ensuring zero server telemetry of user keys.
+- **Epsilon Balance Checking**: Invariants enforced so the sum of individual shares always matches the total expense amount within 1 paisa.
