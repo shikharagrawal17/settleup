@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "historyId": "43c23618-f156-4579-af5c-192e66f5da0c",
+  "currentRevision": "138c9a3e-c73e-41fb-a156-ac06f7db5121",
+  "pendingChanges": false,
+  "files": {
+    "assets/images/hero.png": {
+      "hash": "0d376821c4456da92ffe7727dc884fc023b2c8c93945bb79c1f7dd3ab3bdd8a2",
+      "content": "/Users/shikhar/.cache/hyperframes/history/43c23618-f156-4579-af5c-192e66f5da0c/blobs/0d/0d376821c4456da92ffe7727dc884fc023b2c8c93945bb79c1f7dd3ab3bdd8a2"
+    },
+    "assets/images/logo.png": {
+      "hash": "26c5a6c1ef11ad1b7fda182cb176898aabca093b77cab4280a8f27d178bf5214",
+      "content": "/Users/shikhar/.cache/hyperframes/history/43c23618-f156-4579-af5c-192e66f5da0c/blobs/26/26c5a6c1ef11ad1b7fda182cb176898aabca093b77cab4280a8f27d178bf5214"
+    },
+    "assets/images/logo_with_bg.png": {
+      "hash": "9e698540d2b30eb924e6fe60d4dc61604376f5a83bb36e0dc6303cf942952430",
+      "content": "/Users/shikhar/.cache/hyperframes/history/43c23618-f156-4579-af5c-192e66f5da0c/blobs/9e/9e698540d2b30eb924e6fe60d4dc61604376f5a83bb36e0dc6303cf942952430"
+    },
+    "assets/sfx/bell.ogg": {
+      "hash": "94b8bb5f2d43ab65e4bcc32b28562416e9bc2c51d9fd4be1e333660ee52f977f",
+      "content": "/Users/shikhar/.cache/hyperframes/history/43c23618-f156-4579-af5c-192e66f5da0c/blobs/94/94b8bb5f2d43ab65e4bcc32b28562416e9bc2c51d9fd4be1e333660ee52f977f"
+    },
+    "assets/sfx/card-slide.ogg": {
+      "hash": "006cf9822d15d7063f8899e56041f41646df30adb6fbd8b974ee5d5420012690",
+      "content": "/Users/shikhar/.cache/hyperframes/history/43c23618-f156-4579-af5c-192e66f5da0c/blobs/00/006cf9822d15d7063f8899e56041f41646df30adb6fbd8b974ee5d5420012690"
+    },
+    "assets/sfx/click.ogg": {
+      "hash": "ece1210c62ccae6c9ea4f4c59466d9d453d6b357c7d4b1a6c31196e5e6fea1bf",
+      "content": "/Users/shikhar/.cache/hyperframes/history/43c23618-f156-4579-af5c-192e66f5da0c/blobs/ec/ece1210c62ccae6c9ea4f4c59466d9d453d6b357c7d4b1a6c31196e5e6fea1bf"
+    },
+    "assets/sfx/drop.ogg": {
+      "hash": "692ee3a6f1821402ca649ff735bee9591dc4846c8098fc7d6a90fd15fa57c1af",
+      "content": "/Users/shikhar/.cache/hyperframes/history/43c23618-f156-4579-af5c-192e66f5da0c/blobs/69/692ee3a6f1821402ca649ff735bee9591dc4846c8098fc7d6a90fd15fa57c1af"
+    },
+    "hyperframes.json": {
+      "hash": "53dbce1e19aa713cbb12ee0bc4d206143b45ab15e6ffbfcaa8f69572d4d24d50",
+      "content": "/Users/shikhar/.cache/hyperframes/history/43c23618-f156-4579-af5c-192e66f5da0c/blobs/53/53dbce1e19aa713cbb12ee0bc4d206143b45ab15e6ffbfcaa8f69572d4d24d50"
+    },
+    "index.html": {
+      "hash": "7cbea83e10078b4fb55ff9f8903184d4d47e60eb3862128c6bab0a64bb5853ee",
+      "content": "/Users/shikhar/.cache/hyperframes/history/43c23618-f156-4579-af5c-192e66f5da0c/blobs/7c/7cbea83e10078b4fb55ff9f8903184d4d47e60eb3862128c6bab0a64bb5853ee"
+    },
+    "package.json": {
+      "hash": "cfb739e73210745c9a52dacbb76041997407b5d4da442727875bfb57fc5fc3df",
+      "content": "/Users/shikhar/.cache/hyperframes/history/43c23618-f156-4579-af5c-192e66f5da0c/blobs/cf/cfb739e73210745c9a52dacbb76041997407b5d4da442727875bfb57fc5fc3df"
+    },
+    "assets/music/bgm.mp3": {
+      "hash": "aa56ab1cdcbef6b05566c6a7c114323078580ccf6a740a9e6c6b6c4b40b4389f",
+      "content": "/Users/shikhar/.cache/hyperframes/history/43c23618-f156-4579-af5c-192e66f5da0c/blobs/aa/aa56ab1cdcbef6b05566c6a7c114323078580ccf6a740a9e6c6b6c4b40b4389f"
+    }
+  },
+  "revisions": {
+    "138c9a3e-c73e-41fb-a156-ac06f7db5121": {
+      "actor": {
+        "kind": "outside",
+        "name": "Outside"
+      },
+      "label": "Changed outside the app",
+      "startedAt": 1792779389198,
+      "endedAt": 1792779389199,
+      "files": {
+        "index.html": {
+          "before": "/Users/shikhar/.cache/hyperframes/history/43c23618-f156-4579-af5c-192e66f5da0c/blobs/b5/b5f075812eaf4db62e17d62abc4db90356fd25068bf1de34721294720344c8c4",
+          "after": "/Users/shikhar/.cache/hyperframes/history/43c23618-f156-4579-af5c-192e66f5da0c/blobs/7c/7cbea83e10078b4fb55ff9f8903184d4d47e60eb3862128c6bab0a64bb5853ee"
+        }
+      }
+    }
+  },
+  "checks": {
+    "latest": {
+      "revision": "138c9a3e-c73e-41fb-a156-ac06f7db5121",
+      "id": "71523df1-e64a-4774-9216-df8acb4984b8"
+    },
+    "revisions": {
+      "138c9a3e-c73e-41fb-a156-ac06f7db5121": [
+        {
+          "id": "71523df1-e64a-4774-9216-df8acb4984b8",
+          "scope": "project",
+          "report": "/Users/shikhar/Projects/settleup_lite/brag-output/devfest-ai/composition/.hyperframes/artifacts/checks/71523df1-e64a-4774-9216-df8acb4984b8.json",
+          "metadata": {
+            "ok": true,
+            "browserSkipped": false,
+            "options": {
+              "samples": 9,
+              "atTransitions": false,
+              "maxIssues": 80,
+              "collapseStatic": true,
+              "tolerance": 2,
+              "timeout": 3000,
+              "contrast": true,
+              "strict": false,
+              "snapshots": false,
+              "browserGpuMode": "auto"
+            }
+          },
+          "createdAt": 1792779393156,
+          "contentHash": "79f4c65585800aa19249d84db79bce4b2dc8f38e7145ba1a896193ffc4801675",
+          "revision": "138c9a3e-c73e-41fb-a156-ac06f7db5121",
+          "inputFingerprint": "e537f3adb2cc00ead0d2fa2065dc428beff4483bcc730bec88f207406d1a74be",
+          "inputScope": "local-project-files",
+          "attribution": "recorded-revision"
+        }
+      ]
+    },
+    "unversioned": [
+      {
+        "id": "81969c83-287c-4ede-893a-8ff768235b3c",
+        "scope": "project",
+        "report": "/Users/shikhar/Projects/settleup_lite/brag-output/devfest-ai/composition/.hyperframes/artifacts/checks/81969c83-287c-4ede-893a-8ff768235b3c.json",
+        "metadata": {
+          "ok": false,
+          "browserSkipped": true,
+          "options": {
+            "samples": 9,
+            "atTransitions": false,
+            "maxIssues": 80,
+            "collapseStatic": true,
+            "tolerance": 2,
+            "timeout": 3000,
+            "contrast": true,
+            "strict": false,
+            "snapshots": false,
+            "browserGpuMode": "auto"
+          }
+        },
+        "createdAt": 1792779250062,
+        "contentHash": "931abb8645440ab5fd22588b5b0239d0ea4d788fb67e25375c5e9b00ea42ae47",
+        "revision": null,
+        "inputFingerprint": "21b071a96207c5c9512ff3162f219a636996687879530fb41a2b183473d1c209",
+        "inputScope": "local-project-files",
+        "attribution": "unversioned"
+      }
+    ]
+  },
+  "snapshots": {
+    "latest": null,
+    "revisions": {},
+    "unversioned": []
+  },
+  "renders": {
+    "latest": {
+      "id": "8178cde4-6580-436a-9c17-a9c4bf6d48ec",
+      "completedAt": 1792779425631,
+      "output": "/Users/shikhar/Projects/settleup_lite/brag-output/devfest-ai/devfest-brag.mp4",
+      "status": "completed",
+      "revision": "138c9a3e-c73e-41fb-a156-ac06f7db5121"
+    },
+    "retainedRevisions": [
+      "138c9a3e-c73e-41fb-a156-ac06f7db5121"
+    ]
+  },
+  "pendingArtifactCleanup": []
+}

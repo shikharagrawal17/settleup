@@ -1,0 +1,731 @@
+{
+  "ok": true,
+  "strict": false,
+  "browserSkipped": false,
+  "lint": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 5,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "composition_file_too_large",
+        "severity": "warning",
+        "message": "This HTML composition file has 339 lines. Smaller sub-compositions are easier to read, iterate on, and diff.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "/Users/shikhar/Projects/settleup_lite/brag-output/devfest-ai/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Split coherent scenes or layers into separate .html files under compositions/, then mount them from the parent with data-composition-src so each file stays small enough to inspect, revise, and validate independently."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"scene1\"> is a timeline element that contains nested <div id=\"s1-pill\">. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#scene1",
+        "dataAttributes": {},
+        "sourceFile": "/Users/shikhar/Projects/settleup_lite/brag-output/devfest-ai/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"scene1\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"scene2\"> is a timeline element that contains nested <div id=\"s2-pill\">. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#scene2",
+        "dataAttributes": {},
+        "sourceFile": "/Users/shikhar/Projects/settleup_lite/brag-output/devfest-ai/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"scene2\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"scene3\"> is a timeline element that contains nested <div id=\"s3-pill\">. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#scene3",
+        "dataAttributes": {},
+        "sourceFile": "/Users/shikhar/Projects/settleup_lite/brag-output/devfest-ai/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"scene3\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<div id=\"scene4\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#scene4",
+        "dataAttributes": {},
+        "sourceFile": "/Users/shikhar/Projects/settleup_lite/brag-output/devfest-ai/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <div id=\"scene4\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      }
+    ],
+    "filesScanned": 1
+  },
+  "runtime": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "layout": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 1,
+    "findings": [
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 12.222,
+        "selector": "#laser-bar",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": 235,
+          "top": 871.86,
+          "right": 695,
+          "bottom": 875.86,
+          "width": 460,
+          "height": 4
+        },
+        "containerSelector": "#scanner-bill",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 235,
+          "top": 529.69,
+          "right": 695,
+          "bottom": 831.69,
+          "width": 460,
+          "height": 302
+        },
+        "overflow": {
+          "bottom": 44.17
+        },
+        "dataAttributes": {
+          "data-hf-id": "hf-s3-laser"
+        },
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 235,
+          "y": 871.86,
+          "width": 460,
+          "height": 4
+        },
+        "firstSeen": 12.222,
+        "lastSeen": 12.222,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          12.222
+        ]
+      }
+    ],
+    "duration": 20,
+    "samples": [
+      1.111,
+      3.333,
+      5.556,
+      7.778,
+      10,
+      12.222,
+      14.444,
+      16.667,
+      18.889
+    ],
+    "transitionSamples": [],
+    "transitionSamplesDropped": 0,
+    "tolerance": 2,
+    "totalIssueCount": 1,
+    "truncated": false
+  },
+  "motion": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "samples": 0
+  },
+  "contrast": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "samples": [
+      1.111,
+      5.556,
+      10,
+      14.444,
+      18.889
+    ],
+    "checked": 57,
+    "passed": 57
+  },
+  "craft": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 3,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "first_frame_empty",
+        "severity": "warning",
+        "message": "Frame 0 shows only the background, and the first frame is the thumbnail on social players: have the title or key image already on screen at 0 s instead of entering from nothing; see references/review.md.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0
+      },
+      {
+        "code": "text_below_floor",
+        "severity": "warning",
+        "message": "Type floor is 28 px (2.6% of the 1080 px short side, what a phone can read) and 57 text elements stay under it for 0.5 s or more, the smallest \"GSTIN: 27AABCT3518Q1ZS • 23-OCT-2024\" at 13 px: set reading text to at least 28 px, or put data-layout-ignore on text that is texture rather than reading; see references/look.md.",
+        "text": "GSTIN: 27AABCT3518Q1ZS • 23-OCT-2024",
+        "selector": "div.bill-meta",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 334.43,
+          "y": 603.59,
+          "width": 261.12,
+          "height": 15.79
+        },
+        "time": 10.75,
+        "times": [
+          0.25,
+          0.5,
+          0.625,
+          0.625,
+          0.625,
+          0.75,
+          0.75,
+          0.75,
+          1,
+          1,
+          1,
+          1.25,
+          1.25,
+          1.25,
+          4.75,
+          5.125,
+          5.875,
+          5.875,
+          6.375,
+          6.375,
+          6.375,
+          6.375,
+          6.75,
+          6.75,
+          6.75,
+          6.75,
+          7,
+          7,
+          7,
+          7,
+          10.25,
+          10.625,
+          10.75,
+          10.75,
+          10.75,
+          10.75,
+          10.75,
+          10.75,
+          10.75,
+          10.75,
+          10.75,
+          10.75,
+          10.75,
+          10.75,
+          11.5,
+          11.5,
+          12.125,
+          12.125,
+          12.75,
+          12.75,
+          16.625,
+          17,
+          17,
+          17,
+          17,
+          17.5,
+          17.5
+        ],
+        "fontPx": 12.83,
+        "floorPx": 28,
+        "seconds": 4.75,
+        "elements": [
+          {
+            "selector": "div.bill-meta",
+            "text": "GSTIN: 27AABCT3518Q1ZS • 23-OCT-2024",
+            "fontPx": 12.83,
+            "time": 10.75,
+            "seconds": 4.75
+          },
+          {
+            "selector": "span.stack-badge.badge-amber",
+            "text": "Serverless",
+            "fontPx": 13.69,
+            "time": 0.75,
+            "seconds": 3.75
+          },
+          {
+            "selector": "span.stack-badge.badge-blue",
+            "text": "Cross-Platform",
+            "fontPx": 13.87,
+            "time": 0.625,
+            "seconds": 3.875
+          },
+          {
+            "selector": "span.stack-badge.badge-purple",
+            "text": "Google AI",
+            "fontPx": 13.87,
+            "time": 1,
+            "seconds": 3.5
+          },
+          {
+            "selector": "span.stack-badge.badge-green",
+            "text": "Gemma 4 / Apache",
+            "fontPx": 13.87,
+            "time": 1.25,
+            "seconds": 3.25
+          },
+          {
+            "selector": "#pcard-1 > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2)",
+            "text": "Paid for Group",
+            "fontPx": 14,
+            "time": 6.375,
+            "seconds": 3.625
+          },
+          {
+            "selector": "span.pcard-pill.pill-paid",
+            "text": "✓ Gets Back ₹1,200",
+            "fontPx": 14,
+            "time": 6.375,
+            "seconds": 3.625
+          },
+          {
+            "selector": "#pcard-2 > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2)",
+            "text": "DevFest Co-author",
+            "fontPx": 14,
+            "time": 6.75,
+            "seconds": 3.25
+          },
+          {
+            "selector": "#pcard-2 > span:nth-of-type(1)",
+            "text": "⚡ Owes Aman",
+            "fontPx": 14,
+            "time": 6.75,
+            "seconds": 3.25
+          },
+          {
+            "selector": "#pcard-3 > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2)",
+            "text": "Team Lead",
+            "fontPx": 14,
+            "time": 7,
+            "seconds": 3
+          },
+          {
+            "selector": "#pcard-3 > span:nth-of-type(1)",
+            "text": "⚡ Owes Aman",
+            "fontPx": 14,
+            "time": 7,
+            "seconds": 3
+          },
+          {
+            "selector": "#scanner-bill > div:nth-of-type(3) > span:nth-of-type(1)",
+            "text": "3x Filter Coffee",
+            "fontPx": 15.79,
+            "time": 10.75,
+            "seconds": 4.75
+          },
+          {
+            "selector": "#scanner-bill > div:nth-of-type(3) > span:nth-of-type(2)",
+            "text": "₹240",
+            "fontPx": 15.79,
+            "time": 10.75,
+            "seconds": 4.75
+          },
+          {
+            "selector": "#scanner-bill > div:nth-of-type(4) > span:nth-of-type(1)",
+            "text": "2x Gourmet Burgers",
+            "fontPx": 15.79,
+            "time": 10.75,
+            "seconds": 4.75
+          },
+          {
+            "selector": "#scanner-bill > div:nth-of-type(4) > span:nth-of-type(2)",
+            "text": "₹760",
+            "fontPx": 15.79,
+            "time": 10.75,
+            "seconds": 4.75
+          },
+          {
+            "selector": "#scanner-bill > div:nth-of-type(5) > span:nth-of-type(1)",
+            "text": "1x Hackathon Platter",
+            "fontPx": 15.79,
+            "time": 10.75,
+            "seconds": 4.75
+          },
+          {
+            "selector": "#scanner-bill > div:nth-of-type(5) > span:nth-of-type(2)",
+            "text": "₹1,250",
+            "fontPx": 15.79,
+            "time": 10.75,
+            "seconds": 4.75
+          },
+          {
+            "selector": "#scanner-bill > div:nth-of-type(6) > span:nth-of-type(1)",
+            "text": "CGST + SGST (5%)",
+            "fontPx": 15.79,
+            "time": 10.75,
+            "seconds": 4.75
+          },
+          {
+            "selector": "#scanner-bill > div:nth-of-type(6) > span:nth-of-type(2)",
+            "text": "₹112",
+            "fontPx": 15.79,
+            "time": 10.75,
+            "seconds": 4.75
+          },
+          {
+            "selector": "#insight-1 > div:nth-of-type(2) > div:nth-of-type(2)",
+            "text": "Automatically verifies merchant tax IDs, splits items per consumer, and detects gratuity taxes.",
+            "fontPx": 16,
+            "time": 11.5,
+            "seconds": 4
+          },
+          {
+            "selector": "#insight-2 > div:nth-of-type(2) > div:nth-of-type(2)",
+            "text": "Reduces 15 circular cross-debts into just 3 direct peer transfers before invoicing.",
+            "fontPx": 16,
+            "time": 12.125,
+            "seconds": 3.375
+          },
+          {
+            "selector": "#insight-3 > div:nth-of-type(2) > div:nth-of-type(2)",
+            "text": "Seamless deep links launch GPay, PhonePe, and Paytm with pre-filled amounts and reference notes.",
+            "fontPx": 16,
+            "time": 12.75,
+            "seconds": 2.75
+          },
+          {
+            "selector": "#card-firebase > p:nth-of-type(1)",
+            "text": "Real-time reactive Cloud Firestore syncing, Google OAuth with popup fallback, & global CDN hosting.",
+            "fontPx": 16.63,
+            "time": 0.75,
+            "seconds": 3.75
+          },
+          {
+            "selector": "#card-flutter > p:nth-of-type(1)",
+            "text": "Pixel-perfect native performance on Android, iOS, and Web with 60 FPS zero-latency UI.",
+            "fontPx": 16.84,
+            "time": 0.625,
+            "seconds": 3.875
+          },
+          {
+            "selector": "#card-gemini > p:nth-of-type(1)",
+            "text": "JSON Schema-guided conversational parsing & Multimodal Vision for Indian bills & receipts.",
+            "fontPx": 16.84,
+            "time": 1,
+            "seconds": 3.5
+          },
+          {
+            "selector": "#card-gemma > p:nth-of-type(1)",
+            "text": "100% transparent open-source codebases with greedy debt graph compression algorithms.",
+            "fontPx": 16.84,
+            "time": 1.25,
+            "seconds": 3.25
+          },
+          {
+            "selector": "#s2-ai-tag > span:nth-of-type(1)",
+            "text": "⚡ Gemini 3.5 Flash Structured JSON Extraction",
+            "fontPx": 17.42,
+            "time": 5.875,
+            "seconds": 4.125
+          },
+          {
+            "selector": "#s2-ai-tag > span:nth-of-type(3)",
+            "text": "Zero Ambiguity",
+            "fontPx": 17.42,
+            "time": 5.875,
+            "seconds": 4.125
+          },
+          {
+            "selector": "#outro-tags > div:nth-of-type(1)",
+            "text": "Flutter 3.x Web & Mobile",
+            "fontPx": 18,
+            "time": 17,
+            "seconds": 3
+          },
+          {
+            "selector": "#outro-tags > div:nth-of-type(2)",
+            "text": "Firebase Cloud Firestore",
+            "fontPx": 18,
+            "time": 17,
+            "seconds": 3
+          },
+          {
+            "selector": "#outro-tags > div:nth-of-type(3)",
+            "text": "Gemini 3.5 AI Studio",
+            "fontPx": 18,
+            "time": 17,
+            "seconds": 3
+          },
+          {
+            "selector": "#outro-tags > div:nth-of-type(4)",
+            "text": "Gemma Open Model Weights",
+            "fontPx": 18,
+            "time": 17,
+            "seconds": 3
+          },
+          {
+            "selector": "#outro-license > span:nth-of-type(1)",
+            "text": "⭐ 100% Free & Open Source on GitHub",
+            "fontPx": 18.96,
+            "time": 17.5,
+            "seconds": 2.5
+          },
+          {
+            "selector": "#outro-license > span:nth-of-type(3)",
+            "text": "bharat-dues.web.app",
+            "fontPx": 18.96,
+            "time": 17.5,
+            "seconds": 2.5
+          },
+          {
+            "selector": "#s1-pill > span:nth-of-type(5)",
+            "text": "Google DevFest 2024 • Open Source Edition",
+            "fontPx": 19.81,
+            "time": 0.25,
+            "seconds": 4.25
+          },
+          {
+            "selector": "#s2-pill > span:nth-of-type(1)",
+            "text": "✨ Feature 01 • Natural Language Expense AI",
+            "fontPx": 20,
+            "time": 4.75,
+            "seconds": 5.25
+          },
+          {
+            "selector": "div.pcard-avatar.av-aman",
+            "text": "A",
+            "fontPx": 20,
+            "time": 6.375,
+            "seconds": 3.625
+          },
+          {
+            "selector": "div.pcard-avatar.av-shikhar",
+            "text": "S",
+            "fontPx": 20,
+            "time": 6.75,
+            "seconds": 3.25
+          },
+          {
+            "selector": "div.pcard-avatar.av-priya",
+            "text": "P",
+            "fontPx": 20,
+            "time": 7,
+            "seconds": 3
+          },
+          {
+            "selector": "#s3-pill > span:nth-of-type(1)",
+            "text": "📸 Feature 02 • Multimodal Gemini Vision",
+            "fontPx": 20,
+            "time": 10.25,
+            "seconds": 5.25
+          },
+          {
+            "selector": "div.bill-title",
+            "text": "DEVFEST HACKATHON CAFE",
+            "fontPx": 21.71,
+            "time": 10.75,
+            "seconds": 4.75
+          },
+          {
+            "selector": "div.bill-total-row > span:nth-of-type(1)",
+            "text": "Total Bill",
+            "fontPx": 21.71,
+            "time": 10.75,
+            "seconds": 4.75
+          },
+          {
+            "selector": "div.bill-total-row > span:nth-of-type(2)",
+            "text": "₹2,362.00",
+            "fontPx": 21.71,
+            "time": 10.75,
+            "seconds": 4.75
+          },
+          {
+            "selector": "#pcard-1 > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+            "text": "Aman Sharma",
+            "fontPx": 22,
+            "time": 6.375,
+            "seconds": 3.625
+          },
+          {
+            "selector": "#pcard-2 > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+            "text": "Shikhar",
+            "fontPx": 22,
+            "time": 6.75,
+            "seconds": 3.25
+          },
+          {
+            "selector": "#pcard-3 > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)",
+            "text": "Priya Patel",
+            "fontPx": 22,
+            "time": 7,
+            "seconds": 3
+          },
+          {
+            "selector": "#insight-1 > div:nth-of-type(2) > div:nth-of-type(1)",
+            "text": "Gemini Vision OCR & GST Parser",
+            "fontPx": 22,
+            "time": 11.5,
+            "seconds": 4
+          },
+          {
+            "selector": "#insight-2 > div:nth-of-type(2) > div:nth-of-type(1)",
+            "text": "Greedy Debt Graph Simplifier",
+            "fontPx": 22,
+            "time": 12.125,
+            "seconds": 3.375
+          },
+          {
+            "selector": "#insight-3 > div:nth-of-type(2) > div:nth-of-type(1)",
+            "text": "1-Tap UPI Intent & WhatsApp Receipts",
+            "fontPx": 22,
+            "time": 12.75,
+            "seconds": 2.75
+          },
+          {
+            "selector": "#card-firebase > div:nth-of-type(2) > div:nth-of-type(1)",
+            "text": "Firebase",
+            "fontPx": 25.43,
+            "time": 0.75,
+            "seconds": 3.75
+          },
+          {
+            "selector": "#s1-subline",
+            "text": "Empowering millions with India-first debt minimization, multimodal bill intelligence, and 1-tap UPI settlements.",
+            "fontPx": 25.75,
+            "time": 0.5,
+            "seconds": 4
+          },
+          {
+            "selector": "#card-flutter > div:nth-of-type(2) > div:nth-of-type(1)",
+            "text": "Flutter 3.x",
+            "fontPx": 25.75,
+            "time": 0.625,
+            "seconds": 3.875
+          },
+          {
+            "selector": "#card-gemini > div:nth-of-type(2) > div:nth-of-type(1)",
+            "text": "Gemini 3.5",
+            "fontPx": 25.75,
+            "time": 1,
+            "seconds": 3.5
+          },
+          {
+            "selector": "#card-gemma > div:nth-of-type(2) > div:nth-of-type(1)",
+            "text": "Open Weights",
+            "fontPx": 25.75,
+            "time": 1.25,
+            "seconds": 3.25
+          },
+          {
+            "selector": "#s2-subline",
+            "text": "No complex forms or tedious dropdowns. Just write what happened, and Gemini 3.5 Flash splits it instantly.",
+            "fontPx": 26,
+            "time": 5.125,
+            "seconds": 4.875
+          },
+          {
+            "selector": "#s3-subline",
+            "text": "Complex handwritten or printed receipts parsed with OCR & Google Vision, coupled to instant 1-Tap UPI intents.",
+            "fontPx": 26,
+            "time": 10.625,
+            "seconds": 4.875
+          },
+          {
+            "selector": "#outro-sub",
+            "text": "The Open Source AI Fintech Suite built for India's 500 Million UPI Users.",
+            "fontPx": 26,
+            "time": 16.625,
+            "seconds": 3.375
+          }
+        ]
+      },
+      {
+        "code": "line_unread",
+        "severity": "warning",
+        "message": "The film's last line \"The Open Source AI Fintech Suite built for India's 500 Mi...\" (14 words) is on screen 3.46 s (±0.01 s), under the 3.53 s a closing line needs: hold it about 0.5 s + 0.3 s a word and at least 2 s before the film ends; see references/motion.md.",
+        "text": "The Open Source AI Fintech Suite built for India's 500 Million UPI Users.",
+        "selector": "#outro-sub",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 550.5,
+          "y": 516.32,
+          "width": 819,
+          "height": 30
+        },
+        "time": 16.539,
+        "words": 14,
+        "seconds": 3.465,
+        "floorSeconds": 3.525
+      }
+    ],
+    "enabled": true,
+    "step": 0.125,
+    "samples": 160
+  },
+  "hdr": {
+    "autoPromotion": null,
+    "inspection": "available"
+  },
+  "snapshots": {
+    "enabled": false,
+    "files": [],
+    "times": [],
+    "findingFiles": []
+  }
+}

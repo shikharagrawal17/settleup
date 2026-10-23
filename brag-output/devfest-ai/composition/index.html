@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>Bharat Dues — Google DevFest AI & Open Source Edition</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html, body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #0B0F19;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: #FFFFFF;
+        -webkit-font-smoothing: antialiased;
+      }
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #0B0F19;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+
+      /* Google AI Gradient Glows */
+      .ambient-orb {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(140px);
+        pointer-events: none;
+        z-index: 1;
+      }
+      .orb-blue {
+        width: 800px;
+        height: 800px;
+        background: radial-gradient(circle, rgba(66, 133, 244, 0.28) 0%, rgba(66, 133, 244, 0) 70%);
+        top: -200px;
+        left: -150px;
+      }
+      .orb-purple {
+        width: 900px;
+        height: 900px;
+        background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0) 70%);
+        bottom: -250px;
+        right: -150px;
+      }
+      .orb-amber {
+        width: 600px;
+        height: 600px;
+        background: radial-gradient(circle, rgba(251, 188, 5, 0.15) 0%, rgba(251, 188, 5, 0) 70%);
+        top: 250px;
+        right: 300px;
+      }
+
+      /* Base clip container */
+      .clip {
+        position: absolute;
+        inset: 0;
+        width: 1920px;
+        height: 1080px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 50px 90px;
+        z-index: 2;
+      }
+
+      /* Pill Eyebrow */
+      .devfest-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 24px;
+        border-radius: 9999px;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-bottom: 24px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        backdrop-filter: blur(16px);
+      }
+      .gdg-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+      .dot-blue { background: #4285F4; }
+      .dot-red { background: #EA4335; }
+      .dot-yellow { background: #FBBC05; }
+      .dot-green { background: #34A853; }
+
+      .headline {
+        font-size: 64px;
+        font-weight: 850;
+        letter-spacing: -0.035em;
+        line-height: 1.15;
+        text-align: center;
+        color: #FFFFFF;
+        margin-bottom: 16px;
+        max-width: 1450px;
+      }
+      .gradient-text-ai {
+        background: linear-gradient(135deg, #60A5FA 0%, #C084FC 50%, #F472B6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .gradient-text-google {
+        background: linear-gradient(135deg, #4285F4 0%, #34A853 35%, #FBBC05 70%, #EA4335 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .subline {
+        font-size: 26px;
+        font-weight: 450;
+        color: #94A3B8;
+        text-align: center;
+        margin-bottom: 44px;
+        max-width: 1100px;
+        line-height: 1.4;
+      }
+
+      /* Card Surface */
+      .card-dark {
+        background: rgba(17, 24, 39, 0.75);
+        border-radius: 28px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 24px 60px -15px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+        backdrop-filter: blur(20px);
+      }
+
+      /* SCENE 1: STACK GRID */
+      .stack-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 24px;
+        width: 100%;
+        max-width: 1560px;
+      }
+      .stack-card {
+        padding: 32px 28px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+        position: relative;
+        overflow: hidden;
+      }
+      .stack-card::before {
+        content: "";
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+      }
+      .sc-flutter::before { background: #02569B; }
+      .sc-firebase::before { background: #FFCA28; }
+      .sc-gemini::before { background: linear-gradient(90deg, #4285F4, #A855F7); }
+      .sc-opensource::before { background: #34A853; }
+
+      .stack-icon-box {
+        width: 64px;
+        height: 64px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .stack-name {
+        font-size: 26px;
+        font-weight: 800;
+        color: #F8FAFC;
+      }
+      .stack-badge {
+        font-size: 14px;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .badge-blue { background: rgba(59, 130, 246, 0.2); color: #93C5FD; border: 1px solid rgba(59, 130, 246, 0.4); }
+      .badge-amber { background: rgba(245, 158, 11, 0.2); color: #FCD34D; border: 1px solid rgba(245, 158, 11, 0.4); }
+      .badge-purple { background: rgba(168, 85, 247, 0.2); color: #D8B4FE; border: 1px solid rgba(168, 85, 247, 0.4); }
+      .badge-green { background: rgba(34, 197, 94, 0.2); color: #86EFAC; border: 1px solid rgba(34, 197, 94, 0.4); }
+
+      .stack-desc {
+        font-size: 17px;
+        color: #94A3B8;
+        line-height: 1.5;
+        font-weight: 450;
+      }
+
+      /* SCENE 2: CONVERSATIONAL AI SPLIT */
+      .ai-flow-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        max-width: 1400px;
+        gap: 32px;
+      }
+      .prompt-box {
+        width: 100%;
+        padding: 24px 36px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        background: rgba(30, 41, 59, 0.8);
+        border: 1px solid rgba(96, 165, 250, 0.4);
+        border-radius: 24px;
+        box-shadow: 0 10px 40px rgba(66, 133, 244, 0.15);
+      }
+      .ai-sparkle-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, #4285F4, #9333EA);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 26px;
+        box-shadow: 0 0 20px rgba(147, 51, 234, 0.5);
+      }
+      .prompt-text {
+        font-size: 28px;
+        font-weight: 600;
+        color: #E2E8F0;
+        font-family: monospace;
+      }
+      .prompt-cursor {
+        display: inline-block;
+        width: 3px;
+        height: 30px;
+        background: #60A5FA;
+        margin-left: 4px;
+        animation: blink 0.9s infinite;
+      }
+      @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+      .ai-arrow-indicator {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        font-size: 19px;
+        font-weight: 700;
+        color: #C084FC;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      .parsed-cards-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 28px;
+        width: 100%;
+      }
+      .parsed-card {
+        padding: 28px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+      }
+      .pcard-user {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .pcard-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        font-weight: 800;
+        color: #FFFFFF;
+      }
+      .av-aman { background: #3B82F6; }
+      .av-shikhar { background: #10B981; }
+      .av-priya { background: #EC4899; }
+      .pcard-name { font-size: 22px; font-weight: 700; color: #F1F5F9; }
+      .pcard-role { font-size: 14px; color: #94A3B8; font-weight: 500; }
+      .pcard-amount {
+        font-size: 30px;
+        font-weight: 850;
+        color: #38BDF8;
+      }
+      .pcard-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 700;
+        width: fit-content;
+      }
+      .pill-paid { background: rgba(34, 197, 94, 0.18); color: #4ADE80; border: 1px solid rgba(74, 222, 128, 0.3); }
+      .pill-owes { background: rgba(248, 113, 113, 0.18); color: #F87171; border: 1px solid rgba(248, 113, 113, 0.3); }
+
+      /* SCENE 3: MULTIMODAL RECEIPT SCANNER */
+      .scanner-layout {
+        display: grid;
+        grid-template-columns: 460px 1fr;
+        gap: 48px;
+        width: 100%;
+        max-width: 1450px;
+        align-items: center;
+      }
+      .bill-scanner-card {
+        position: relative;
+        background: #FFFFFF;
+        color: #0F172A;
+        border-radius: 24px;
+        padding: 32px 28px;
+        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+      }
+      .laser-scan-line {
+        position: absolute;
+        left: 0; right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, transparent, #38BDF8, #818CF8, transparent);
+        box-shadow: 0 0 20px 4px rgba(56, 189, 248, 0.85);
+        z-index: 10;
+        top: 0;
+      }
+      .bill-header {
+        border-bottom: 2px dashed #CBD5E1;
+        padding-bottom: 16px;
+        margin-bottom: 16px;
+        text-align: center;
+      }
+      .bill-title { font-size: 22px; font-weight: 800; color: #0F172A; }
+      .bill-meta { font-size: 13px; color: #64748B; margin-top: 4px; }
+      .bill-item {
+        display: flex;
+        justify-content: space-between;
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 10px;
+        color: #334155;
+      }
+      .bill-total-row {
+        border-top: 2px dashed #CBD5E1;
+        padding-top: 14px;
+        margin-top: 14px;
+        display: flex;
+        justify-content: space-between;
+        font-size: 22px;
+        font-weight: 850;
+        color: #0F172A;
+      }
+
+      .ai-insights-col {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .insight-box {
+        padding: 24px 28px;
+        display: flex;
+        align-items: flex-start;
+        gap: 20px;
+      }
+      .insight-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        flex-shrink: 0;
+      }
+      .ii-purple { background: rgba(168, 85, 247, 0.2); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.35); }
+      .ii-blue { background: rgba(59, 130, 246, 0.2); color: #60A5FA; border: 1px solid rgba(59, 130, 246, 0.35); }
+      .ii-green { background: rgba(34, 197, 94, 0.2); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.35); }
+      .insight-title { font-size: 22px; font-weight: 700; color: #F8FAFC; margin-bottom: 6px; }
+      .insight-desc { font-size: 16px; color: #94A3B8; line-height: 1.5; }
+
+      /* SCENE 4: DEVFEST CELEBRATION */
+      .outro-box {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        max-width: 1200px;
+      }
+      .outro-logo-circle {
+        width: 120px;
+        height: 120px;
+        border-radius: 36px;
+        background: #FFFFFF;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 20px 50px rgba(0, 46, 110, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.8);
+        margin-bottom: 28px;
+        padding: 16px;
+      }
+      .outro-logo-circle img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .outro-header {
+        font-size: 60px;
+        font-weight: 900;
+        letter-spacing: -0.03em;
+        margin-bottom: 14px;
+      }
+      .outro-subtitle {
+        font-size: 26px;
+        color: #94A3B8;
+        font-weight: 500;
+        margin-bottom: 40px;
+      }
+      .tech-tags-bar {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-bottom: 40px;
+      }
+      .tech-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 24px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        font-size: 18px;
+        font-weight: 700;
+        color: #E2E8F0;
+      }
+      .tech-tag-icon { font-size: 22px; }
+      .open-source-license {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 24px;
+        border-radius: 9999px;
+        background: rgba(52, 168, 83, 0.15);
+        border: 1px solid rgba(52, 168, 83, 0.35);
+        color: #86EFAC;
+        font-size: 19px;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-root" id="root" data-composition-id="main" data-start="0" data-duration="20" data-width="1920" data-height="1080">
+      <!-- Ambient Glow Orbs -->
+      <div data-hf-id="hf-o1" class="ambient-orb orb-blue"></div>
+      <div data-hf-id="hf-o2" class="ambient-orb orb-purple"></div>
+      <div data-hf-id="hf-o3" class="ambient-orb orb-amber"></div>
+
+      <!-- Background Music & SFX -->
+      <audio data-hf-id="hf-aud-bg" id="bg-music" data-start="0" data-duration="20" data-track-index="10" data-volume="0.65" src="assets/music/bgm.mp3"></audio>
+      <audio data-hf-id="hf-aud-s1" id="sfx-card1" data-start="0.4" data-duration="0.6" data-track-index="11" data-volume="0.5" src="assets/sfx/card-slide.ogg"></audio>
+      <audio data-hf-id="hf-aud-s2" id="sfx-card2" data-start="0.8" data-duration="0.6" data-track-index="12" data-volume="0.5" src="assets/sfx/card-slide.ogg"></audio>
+      <audio data-hf-id="hf-aud-s3" id="sfx-drop1" data-start="4.5" data-duration="0.15" data-track-index="13" data-volume="0.75" src="assets/sfx/drop.ogg"></audio>
+      <audio data-hf-id="hf-aud-s4" id="sfx-click1" data-start="7.5" data-duration="0.08" data-track-index="14" data-volume="0.7" src="assets/sfx/click.ogg"></audio>
+      <audio data-hf-id="hf-aud-s5" id="sfx-card3" data-start="10.0" data-duration="0.6" data-track-index="15" data-volume="0.55" src="assets/sfx/card-slide.ogg"></audio>
+      <audio data-hf-id="hf-aud-s6" id="sfx-bell" data-start="13.2" data-duration="1.5" data-track-index="16" data-volume="0.75" src="assets/sfx/bell.ogg"></audio>
+      <audio data-hf-id="hf-aud-s7" id="sfx-drop2" data-start="15.6" data-duration="0.15" data-track-index="17" data-volume="0.75" src="assets/sfx/drop.ogg"></audio>
+
+      <!-- =================================================================== -->
+      <!-- SCENE 1: Google DevFest Open Source Edition (0.0s – 4.5s)           -->
+      <!-- =================================================================== -->
+      <div data-hf-id="hf-sc1" id="scene1" class="clip" data-start="0" data-duration="4.5" data-track-index="1">
+        <div data-hf-id="hf-s1-pill" class="devfest-pill" id="s1-pill">
+          <span class="gdg-dot dot-blue"></span>
+          <span class="gdg-dot dot-red"></span>
+          <span class="gdg-dot dot-yellow"></span>
+          <span class="gdg-dot dot-green"></span>
+          <span>Google DevFest 2024 • Open Source Edition</span>
+        </div>
+
+        <h1 data-hf-id="hf-s1-title" class="headline" id="s1-headline">
+          Building Next-Gen Fintech with <span class="gradient-text-ai">Google AI</span> & <span class="gradient-text-google">Open Source</span>
+        </h1>
+        <p data-hf-id="hf-s1-desc" class="subline" id="s1-subline">
+          Empowering millions with India-first debt minimization, multimodal bill intelligence, and 1-tap UPI settlements.
+        </p>
+
+        <div data-hf-id="hf-s1-grid" class="stack-grid" id="s1-grid">
+          <div data-hf-id="hf-c1" class="card-dark stack-card sc-flutter" id="card-flutter">
+            <div class="stack-icon-box">💙</div>
+            <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+              <div class="stack-name">Flutter 3.x</div>
+              <span class="stack-badge badge-blue">Cross-Platform</span>
+            </div>
+            <p class="stack-desc">Pixel-perfect native performance on Android, iOS, and Web with 60 FPS zero-latency UI.</p>
+          </div>
+
+          <div data-hf-id="hf-c2" class="card-dark stack-card sc-firebase" id="card-firebase">
+            <div class="stack-icon-box">🔥</div>
+            <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+              <div class="stack-name">Firebase</div>
+              <span class="stack-badge badge-amber">Serverless</span>
+            </div>
+            <p class="stack-desc">Real-time reactive Cloud Firestore syncing, Google OAuth with popup fallback, & global CDN hosting.</p>
+          </div>
+
+          <div data-hf-id="hf-c3" class="card-dark stack-card sc-gemini" id="card-gemini">
+            <div class="stack-icon-box">✨</div>
+            <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+              <div class="stack-name">Gemini 3.5</div>
+              <span class="stack-badge badge-purple">Google AI</span>
+            </div>
+            <p class="stack-desc">JSON Schema-guided conversational parsing & Multimodal Vision for Indian bills & receipts.</p>
+          </div>
+
+          <div data-hf-id="hf-c4" class="card-dark stack-card sc-opensource" id="card-gemma">
+            <div class="stack-icon-box">🌐</div>
+            <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+              <div class="stack-name">Open Weights</div>
+              <span class="stack-badge badge-green">Gemma 4 / Apache</span>
+            </div>
+            <p class="stack-desc">100% transparent open-source codebases with greedy debt graph compression algorithms.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- =================================================================== -->
+      <!-- SCENE 2: Conversational Smart AI Split (4.5s – 10.0s)               -->
+      <!-- =================================================================== -->
+      <div data-hf-id="hf-sc2" id="scene2" class="clip" data-start="4.5" data-duration="5.5" data-track-index="2">
+        <div data-hf-id="hf-s2-pill" class="devfest-pill" id="s2-pill">
+          <span>✨ Feature 01 • Natural Language Expense AI</span>
+        </div>
+
+        <h2 data-hf-id="hf-s2-title" class="headline" id="s2-headline">
+          Speak Naturally. <span class="gradient-text-ai">Gemini Handles the Math.</span>
+        </h2>
+        <p data-hf-id="hf-s2-desc" class="subline" id="s2-subline">
+          No complex forms or tedious dropdowns. Just write what happened, and Gemini 3.5 Flash splits it instantly.
+        </p>
+
+        <div data-hf-id="hf-s2-flow" class="ai-flow-container">
+          <div data-hf-id="hf-s2-prompt" class="prompt-box" id="s2-prompt-box">
+            <div class="ai-sparkle-icon">✨</div>
+            <div class="prompt-text">
+              "Aman paid ₹1,800 for pizza at DevFest with Shikhar and Priya"<span class="prompt-cursor"></span>
+            </div>
+          </div>
+
+          <div data-hf-id="hf-s2-arrow" class="ai-arrow-indicator" id="s2-ai-tag">
+            <span>⚡ Gemini 3.5 Flash Structured JSON Extraction</span>
+            <span>➔</span>
+            <span>Zero Ambiguity</span>
+          </div>
+
+          <div data-hf-id="hf-s2-pgrid" class="parsed-cards-grid" id="s2-cards">
+            <div class="parsed-card" id="pcard-1">
+              <div class="pcard-user">
+                <div class="pcard-avatar av-aman">A</div>
+                <div>
+                  <div class="pcard-name">Aman Sharma</div>
+                  <div class="pcard-role">Paid for Group</div>
+                </div>
+              </div>
+              <div class="pcard-amount">₹1,800.00</div>
+              <span class="pcard-pill pill-paid">✓ Gets Back ₹1,200</span>
+            </div>
+
+            <div class="parsed-card" id="pcard-2">
+              <div class="pcard-user">
+                <div class="pcard-avatar av-shikhar">S</div>
+                <div>
+                  <div class="pcard-name">Shikhar</div>
+                  <div class="pcard-role">DevFest Co-author</div>
+                </div>
+              </div>
+              <div class="pcard-amount">₹600.00</div>
+              <span class="pcard-pill pill-owes">⚡ Owes Aman</span>
+            </div>
+
+            <div class="parsed-card" id="pcard-3">
+              <div class="pcard-user">
+                <div class="pcard-avatar av-priya">P</div>
+                <div>
+                  <div class="pcard-name">Priya Patel</div>
+                  <div class="pcard-role">Team Lead</div>
+                </div>
+              </div>
+              <div class="pcard-amount">₹600.00</div>
+              <span class="pcard-pill pill-owes">⚡ Owes Aman</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- =================================================================== -->
+      <!-- SCENE 3: Multimodal Receipt Scanner (10.0s – 15.5s)                 -->
+      <!-- =================================================================== -->
+      <div data-hf-id="hf-sc3" id="scene3" class="clip" data-start="10.0" data-duration="5.5" data-track-index="3">
+        <div data-hf-id="hf-s3-pill" class="devfest-pill" id="s3-pill">
+          <span>📸 Feature 02 • Multimodal Gemini Vision</span>
+        </div>
+
+        <h2 data-hf-id="hf-s3-title" class="headline" id="s3-headline">
+          Point Camera. <span class="gradient-text-ai">Instant Itemized Reconciliation.</span>
+        </h2>
+        <p data-hf-id="hf-s3-desc" class="subline" id="s3-subline">
+          Complex handwritten or printed receipts parsed with OCR & Google Vision, coupled to instant 1-Tap UPI intents.
+        </p>
+
+        <div data-hf-id="hf-s3-layout" class="scanner-layout">
+          <!-- Laser Scanned Receipt -->
+          <div data-hf-id="hf-s3-bill" class="bill-scanner-card" id="scanner-bill">
+            <div data-hf-id="hf-s3-laser" class="laser-scan-line" id="laser-bar"></div>
+            <div class="bill-header">
+              <div class="bill-title">DEVFEST HACKATHON CAFE</div>
+              <div class="bill-meta">GSTIN: 27AABCT3518Q1ZS • 23-OCT-2024</div>
+            </div>
+            <div class="bill-item">
+              <span>3x Filter Coffee</span>
+              <span>₹240</span>
+            </div>
+            <div class="bill-item">
+              <span>2x Gourmet Burgers</span>
+              <span>₹760</span>
+            </div>
+            <div class="bill-item">
+              <span>1x Hackathon Platter</span>
+              <span>₹1,250</span>
+            </div>
+            <div class="bill-item">
+              <span>CGST + SGST (5%)</span>
+              <span>₹112</span>
+            </div>
+            <div class="bill-total-row">
+              <span>Total Bill</span>
+              <span style="color:#2563EB;">₹2,362.00</span>
+            </div>
+          </div>
+
+          <!-- AI Extraction Insights -->
+          <div data-hf-id="hf-s3-insights" class="ai-insights-col">
+            <div data-hf-id="hf-s3-in1" class="card-dark insight-box" id="insight-1">
+              <div class="insight-icon ii-purple">🔍</div>
+              <div>
+                <div class="insight-title">Gemini Vision OCR & GST Parser</div>
+                <div class="insight-desc">Automatically verifies merchant tax IDs, splits items per consumer, and detects gratuity taxes.</div>
+              </div>
+            </div>
+
+            <div data-hf-id="hf-s3-in2" class="card-dark insight-box" id="insight-2">
+              <div class="insight-icon ii-blue">⚡</div>
+              <div>
+                <div class="insight-title">Greedy Debt Graph Simplifier</div>
+                <div class="insight-desc">Reduces 15 circular cross-debts into just 3 direct peer transfers before invoicing.</div>
+              </div>
+            </div>
+
+            <div data-hf-id="hf-s3-in3" class="card-dark insight-box" id="insight-3">
+              <div class="insight-icon ii-green">₹</div>
+              <div>
+                <div class="insight-title">1-Tap UPI Intent & WhatsApp Receipts</div>
+                <div class="insight-desc">Seamless deep links launch GPay, PhonePe, and Paytm with pre-filled amounts and reference notes.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- =================================================================== -->
+      <!-- SCENE 4: Outro & Open Source Celebration (15.5s – 20.0s)            -->
+      <!-- =================================================================== -->
+      <div data-hf-id="hf-sc4" id="scene4" class="clip" data-start="15.5" data-duration="4.5" data-track-index="4">
+        <div data-hf-id="hf-s4-outro" class="outro-box">
+          <div data-hf-id="hf-s4-logo" class="outro-logo-circle" id="outro-logo">
+            <img src="assets/images/logo.png" alt="Bharat Dues Logo">
+          </div>
+
+          <h2 data-hf-id="hf-s4-heading" class="outro-header" id="outro-title">
+            Bharat Dues × Google DevFest
+          </h2>
+
+          <p data-hf-id="hf-s4-sub" class="outro-subtitle" id="outro-sub">
+            The Open Source AI Fintech Suite built for India's 500 Million UPI Users.
+          </p>
+
+          <div data-hf-id="hf-s4-tags" class="tech-tags-bar" id="outro-tags">
+            <div class="tech-tag"><span class="tech-tag-icon">💙</span> Flutter 3.x Web & Mobile</div>
+            <div class="tech-tag"><span class="tech-tag-icon">🔥</span> Firebase Cloud Firestore</div>
+            <div class="tech-tag"><span class="tech-tag-icon">✨</span> Gemini 3.5 AI Studio</div>
+            <div class="tech-tag"><span class="tech-tag-icon">🌐</span> Gemma Open Model Weights</div>
+          </div>
+
+          <div data-hf-id="hf-s4-license" class="open-source-license" id="outro-license">
+            <span>⭐ 100% Free & Open Source on GitHub</span>
+            <span>•</span>
+            <span>bharat-dues.web.app</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GSAP Master Timeline for DevFest Video -->
+    <script>
+      const tl = gsap.timeline({ paused: true });
+
+      // =======================================================================
+      // Scene 1: 0.0s - 4.5s
+      // =======================================================================
+      tl.fromTo("#scene1", { opacity: 0 }, { opacity: 1, duration: 0.4 }, 0);
+      tl.fromTo("#s1-pill", { y: -20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 0.1);
+      tl.fromTo("#s1-headline", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: "power2.out" }, 0.2);
+      tl.fromTo("#s1-subline", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 0.35);
+
+      tl.fromTo("#card-flutter", { y: 40, opacity: 0, scale: 0.95 }, { y: 0, opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.2)" }, 0.45);
+      tl.fromTo("#card-firebase", { y: 40, opacity: 0, scale: 0.95 }, { y: 0, opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.2)" }, 0.65);
+      tl.fromTo("#card-gemini", { y: 40, opacity: 0, scale: 0.95 }, { y: 0, opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.2)" }, 0.85);
+      tl.fromTo("#card-gemma", { y: 40, opacity: 0, scale: 0.95 }, { y: 0, opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.2)" }, 1.05);
+
+      // Scene 1 Exit
+      tl.to("#scene1", { opacity: 0, scale: 0.96, duration: 0.35, ease: "power2.in" }, 4.15);
+
+      // =======================================================================
+      // Scene 2: 4.5s - 10.0s (Beat transition at 4.5s)
+      // =======================================================================
+      tl.fromTo("#scene2", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "power2.out" }, 4.5);
+      tl.fromTo("#s2-pill", { y: -20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4 }, 4.6);
+      tl.fromTo("#s2-headline", { y: 25, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5 }, 4.75);
+      tl.fromTo("#s2-subline", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5 }, 4.9);
+
+      tl.fromTo("#s2-prompt-box", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "back.out(1.3)" }, 5.1);
+      tl.fromTo("#s2-ai-tag", { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(1.4)" }, 5.8);
+
+      tl.fromTo("#pcard-1", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "back.out(1.3)" }, 6.3);
+      tl.fromTo("#pcard-2", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "back.out(1.3)" }, 6.6);
+      tl.fromTo("#pcard-3", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "back.out(1.3)" }, 6.9);
+
+      // Scene 2 Exit
+      tl.to("#scene2", { opacity: 0, x: -60, duration: 0.4, ease: "power2.in" }, 9.6);
+
+      // =======================================================================
+      // Scene 3: 10.0s - 15.5s (Beat drop at 10.0s)
+      // =======================================================================
+      tl.fromTo("#scene3", { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" }, 10.0);
+      tl.fromTo("#s3-pill", { y: -20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4 }, 10.1);
+      tl.fromTo("#s3-headline", { y: 25, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5 }, 10.25);
+      tl.fromTo("#s3-subline", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5 }, 10.4);
+
+      tl.fromTo("#scanner-bill", { y: 40, opacity: 0, scale: 0.95 }, { y: 0, opacity: 1, scale: 1, duration: 0.55, ease: "back.out(1.2)" }, 10.6);
+
+      // Laser Scanner scanning animation
+      tl.fromTo("#laser-bar", { y: 0 }, { y: 360, duration: 1.4, repeat: 1, yoyo: true, ease: "sine.inOut" }, 11.0);
+
+      tl.fromTo("#insight-1", { x: 30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.45, ease: "power2.out" }, 11.4);
+      tl.fromTo("#insight-2", { x: 30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.45, ease: "power2.out" }, 12.0);
+      tl.fromTo("#insight-3", { x: 30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.45, ease: "power2.out" }, 12.6);
+
+      // Scene 3 Exit
+      tl.to("#scene3", { opacity: 0, scale: 1.05, duration: 0.4, ease: "power2.in" }, 15.1);
+
+      // =======================================================================
+      // Scene 4: 15.5s - 20.0s (Outro finale)
+      // =======================================================================
+      tl.fromTo("#scene4", { opacity: 0 }, { opacity: 1, duration: 0.45 }, 15.5);
+      tl.fromTo("#outro-logo", { scale: 0.5, opacity: 0, rotation: -15 }, { scale: 1, opacity: 1, rotation: 0, duration: 0.65, ease: "back.out(1.5)" }, 15.7);
+      tl.fromTo("#outro-title", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 16.1);
+      tl.fromTo("#outro-sub", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 16.4);
+      tl.fromTo("#outro-tags", { y: 25, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 16.8);
+      tl.fromTo("#outro-license", { scale: 0.85, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.4)" }, 17.3);
+
+      // Ambient breath
+      tl.to(".orb-blue", { scale: 1.2, duration: 5, repeat: 1, yoyo: true, ease: "sine.inOut" }, 0);
+      tl.to(".orb-purple", { scale: 1.15, duration: 4.5, repeat: 1, yoyo: true, ease: "sine.inOut" }, 0);
+
+      // Register timeline for HyperFrames
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>
