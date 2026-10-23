@@ -30,7 +30,7 @@ class OcrHelper {
     return _textRecognizer!;
   }
 
-  /// Scans receipt using Google Gemini 1.5 Flash multimodal vision
+  /// Scans receipt using Google Gemini 3.5 Flash multimodal vision
   /// with automatic fallback to ML Kit if offline or key is missing.
   static Future<OcrResult?> scanReceipt({
     ImageSource source = ImageSource.camera,
@@ -47,7 +47,7 @@ class OcrHelper {
       final Uint8List bytes = await image.readAsBytes();
       final String mimeType = image.mimeType ?? 'image/jpeg';
 
-      // 1. Attempt High-Precision Gemini 1.5 Flash analysis
+      // 1. Attempt High-Precision Gemini 3.5 Flash analysis
       final apiKey = await GeminiService.getApiKey();
       if (apiKey != null && apiKey.isNotEmpty) {
         try {
@@ -62,7 +62,7 @@ class OcrHelper {
             description: geminiResult.merchantName ?? geminiResult.rawSummary,
             category: geminiResult.category,
             items: geminiResult.items,
-            provider: 'Google Gemini 1.5 Flash',
+            provider: 'Google Gemini 3.5 Flash',
           );
         } catch (geminiError) {
           debugPrint('[OcrHelper] Gemini scan error, attempting local ML Kit fallback: $geminiError');

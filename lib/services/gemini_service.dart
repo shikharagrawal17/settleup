@@ -31,6 +31,7 @@ class GeminiReceiptResult {
   final List<ReceiptLineItem> items;
   final double? tax;
   final String? rawSummary;
+  final String modelUsed;
 
   const GeminiReceiptResult({
     this.totalAmount,
@@ -40,6 +41,7 @@ class GeminiReceiptResult {
     this.items = const [],
     this.tax,
     this.rawSummary,
+    this.modelUsed = 'gemini-3.5-flash',
   });
 }
 
@@ -52,6 +54,7 @@ class GeminiSplitPlan {
   final ExpenseCategory category;
   final Map<String, double>? customShares;
   final String explanation;
+  final String modelUsed;
 
   const GeminiSplitPlan({
     required this.amount,
@@ -62,6 +65,7 @@ class GeminiSplitPlan {
     required this.category,
     this.customShares,
     required this.explanation,
+    this.modelUsed = 'gemini-3.5-flash',
   });
 }
 
@@ -69,21 +73,25 @@ class GeminiService {
   static const String _prefApiKey = 'gemini_api_key';
   static String? _cachedApiKey;
 
+  /// Verified active models on Google AI Studio API in priority order
+  static const List<String> activeModels = [
+    'gemini-3.5-flash',
+    'gemini-3.6-flash',
+    'gemini-3.8-flash',
+  ];
+
   /// Retrieves the active Gemini API key from environment or local storage.
   static Future<String?> getApiKey() async {
-    // 1. Check in-memory cache
     if (_cachedApiKey != null && _cachedApiKey!.trim().isNotEmpty) {
       return _cachedApiKey!.trim();
     }
 
-    // 2. Check compile-time environment variable
     const envKey = String.fromEnvironment('GEMINI_API_KEY');
     if (envKey.isNotEmpty) {
       _cachedApiKey = envKey;
       return envKey;
     }
 
-    // 3. Check SharedPreferences
     try {
       final prefs = await SharedPreferences.getInstance();
       final storedKey = prefs.getString(_prefApiKey);
@@ -120,7 +128,39 @@ class GeminiService {
     }
   }
 
-  /// Multimodal Receipt & Bill Analyzer using Gemini 1.5 Flash
+  /// Helper to generate content with automatic model fallback across active Google AI Studio models
+  static Future<({String text, String modelUsed})> _generateWithFallback({
+    required String apiKey,
+    required List<Content> contents,
+    GenerationConfig? generationConfig,
+  }) async {
+    Object? lastError;
+
+    for (final modelName in activeModels) {
+      try {
+        final model = GenerativeModel(
+          model: modelName,
+          apiKey: apiKey,
+          generationConfig: generationConfig,
+        );
+
+        final response = await model.generateContent(contents);
+        final text = response.text;
+        if (text != null && text.isNotEmpty) {
+          return (text: text, modelUsed: modelName);
+        }
+      } catch (e) {
+        lastError = e;
+        debugPrint('[GeminiService] Model $modelName failed ($e), trying next active Google model...');
+      }
+    }
+
+    throw Exception(
+      'All active Google AI Studio models failed. Please verify your API key or network connection. Last error: $lastError',
+    );
+  }
+
+  /// Multimodal Receipt & Bill Analyzer using active Google AI Studio models
   static Future<GeminiReceiptResult> analyzeReceipt({
     required Uint8List imageBytes,
     String mimeType = 'image/jpeg',
@@ -131,15 +171,6 @@ class GeminiService {
         'Gemini API key is not configured. Please add your Google AI Studio key.',
       );
     }
-
-    final model = GenerativeModel(
-      model: 'gemini-1.5-flash',
-      apiKey: apiKey,
-      generationConfig: GenerationConfig(
-        temperature: 0.1,
-        responseMimeType: 'application/json',
-      ),
-    );
 
     const prompt = '''
 You are an expert financial receipt auditor and invoice parsing assistant.
@@ -165,7 +196,7 @@ JSON Schema:
 Important:
 - totalAmount MUST be a positive number reflecting the final bill / total payable amount (including taxes).
 - If currency is not explicitly printed, assume INR.
-- Do not include markdown code block syntax if JSON mode is used, or ensure valid JSON output.
+- Return valid JSON only.
 ''';
 
     try {
@@ -174,13 +205,16 @@ Important:
         DataPart(mimeType, imageBytes),
       ]);
 
-      final response = await model.generateContent([content]);
-      final rawText = response.text;
-      if (rawText == null || rawText.isEmpty) {
-        throw Exception('Gemini returned an empty response.');
-      }
+      final result = await _generateWithFallback(
+        apiKey: apiKey,
+        contents: [content],
+        generationConfig: GenerationConfig(
+          temperature: 0.1,
+          responseMimeType: 'application/json',
+        ),
+      );
 
-      final jsonStr = _sanitizeJson(rawText);
+      final jsonStr = _sanitizeJson(result.text);
       final Map<String, dynamic> data = jsonDecode(jsonStr);
 
       double? totalAmount;
@@ -227,6 +261,7 @@ Important:
         items: items,
         tax: tax,
         rawSummary: data['summary'] as String?,
+        modelUsed: result.modelUsed,
       );
     } catch (e) {
       debugPrint('[GeminiService] Receipt parse error: $e');
@@ -234,7 +269,7 @@ Important:
     }
   }
 
-  /// Natural Language Smart Split Assistant using Gemini 1.5 Flash
+  /// Natural Language Smart Split Assistant using active Google AI Studio models
   static Future<GeminiSplitPlan> parseNaturalLanguageExpense({
     required String prompt,
     required List<GroupMember> members,
@@ -246,15 +281,6 @@ Important:
         'Gemini API key is not configured. Please add your Google AI Studio key.',
       );
     }
-
-    final model = GenerativeModel(
-      model: 'gemini-1.5-flash',
-      apiKey: apiKey,
-      generationConfig: GenerationConfig(
-        temperature: 0.1,
-        responseMimeType: 'application/json',
-      ),
-    );
 
     final membersJson = members.map((m) => {
       'id': m.id,
@@ -294,16 +320,16 @@ Rules:
 ''';
 
     try {
-      final response = await model.generateContent([
-        Content.text(systemInstruction),
-      ]);
+      final result = await _generateWithFallback(
+        apiKey: apiKey,
+        contents: [Content.text(systemInstruction)],
+        generationConfig: GenerationConfig(
+          temperature: 0.1,
+          responseMimeType: 'application/json',
+        ),
+      );
 
-      final rawText = response.text;
-      if (rawText == null || rawText.isEmpty) {
-        throw Exception('Gemini returned an empty response.');
-      }
-
-      final jsonStr = _sanitizeJson(rawText);
+      final jsonStr = _sanitizeJson(result.text);
       final Map<String, dynamic> data = jsonDecode(jsonStr);
 
       final double amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
@@ -318,7 +344,7 @@ Rules:
 
       // Match payer
       String? payerId = data['payerMemberId'] as String?;
-      String? payerName = data['payerName'] as String?;
+      final String? payerName = data['payerName'] as String?;
 
       if (payerId == null || !members.any((m) => m.id == payerId)) {
         if (payerName != null) {
@@ -366,6 +392,7 @@ Rules:
         category: category,
         customShares: customShares,
         explanation: explanation,
+        modelUsed: result.modelUsed,
       );
     } catch (e) {
       debugPrint('[GeminiService] Split parse error: $e');

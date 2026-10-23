@@ -45,7 +45,7 @@ Future<void> showGeminiApiKeyDialog(BuildContext context) async {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Power your receipts and expense splits with Google Gemini 1.5 Flash.',
+                'Power your receipts and expense splits with Google Gemini 3.5 Flash.',
                 style: TextStyle(fontSize: 13, color: Colors.black54),
               ),
               const SizedBox(height: 16),
@@ -386,7 +386,7 @@ Future<void> showSmartSplitSheet(
                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         Text(
-                          'Powered by Google Gemini 1.5 Flash',
+                          'Powered by Google Gemini 3.5 Flash',
                           style: TextStyle(fontSize: 12, color: Colors.black54),
                         ),
                       ],
