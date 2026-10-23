@@ -48,3 +48,4 @@ app.*.map.json
 .firebase/
 firepit-log.txt
 
+*.apk
