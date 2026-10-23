@@ -623,7 +623,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
-                                icon: const Icon(Icons.auto_awesome, color: Color(0xFF1A73E8), size: 20),
+                                icon: const Icon(Icons.auto_awesome, color: kPrimaryBlue, size: 20),
                                 tooltip: 'Smart AI Split (Google Gemini)',
                                 onPressed: () {
                                   showSmartSplitSheet(
@@ -730,14 +730,26 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                               padding: const EdgeInsets.only(right: 8),
                               child: FilterChip(
                                 showCheckmark: false,
-                                avatar: Icon(cat.icon, size: 14, color: isSelected ? Colors.black : Colors.black87),
-                                label: Text(cat.label, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal, color: isSelected ? Colors.black : Colors.black87)),
+                                avatar: Icon(cat.icon, size: 14, color: isSelected ? Colors.white : kDarkBlue),
+                                label: Text(
+                                  cat.label, 
+                                  style: TextStyle(
+                                    fontSize: 12, 
+                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500, 
+                                    color: isSelected ? Colors.white : kDarkBlue,
+                                  ),
+                                ),
                                 selected: isSelected,
                                 onSelected: (_) => setSheetState(() {
                                   selectedCategory = cat;
                                   isCategoryManual = true;
                                 }),
-                                selectedColor: kPrimaryBlue,
+                                selectedColor: kDarkBlue,
+                                backgroundColor: Colors.white,
+                                side: BorderSide(
+                                  color: isSelected ? kDarkBlue : Colors.black.withValues(alpha: 0.12),
+                                  width: isSelected ? 1.5 : 1.0,
+                                ),
                               ),
                             );
                           }).toList(),
@@ -788,7 +800,7 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                     inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: kPrimaryBlue),
+                                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: kDarkBlue),
                                     decoration: const InputDecoration(
                                       labelText: 'Total Amount',
                                       alignLabelWithHint: true,
@@ -845,8 +857,8 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('SPLIT METHOD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black38, letterSpacing: 1.5)),
-                          Text(splitMode.label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: kPrimaryBlue)),
+                          const Text('SPLIT METHOD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF5A6E85), letterSpacing: 1.5)),
+                          Text(splitMode.label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: kDarkBlue)),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -859,8 +871,21 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                               padding: const EdgeInsets.only(right: 8),
                               child: FilterChip(
                                 showCheckmark: false,
-                                label: Text(m.label, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal, color: isSelected ? Colors.black : Colors.black87)),
+                                label: Text(
+                                  m.label, 
+                                  style: TextStyle(
+                                    fontSize: 12, 
+                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500, 
+                                    color: isSelected ? Colors.white : kDarkBlue,
+                                  ),
+                                ),
                                 selected: isSelected,
+                                selectedColor: kDarkBlue,
+                                backgroundColor: Colors.white,
+                                side: BorderSide(
+                                  color: isSelected ? kDarkBlue : Colors.black.withValues(alpha: 0.12),
+                                  width: isSelected ? 1.5 : 1.0,
+                                ),
                                 onSelected: (val) {
                                   if (val) {
                                     setSheetState(() {
@@ -898,7 +923,6 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                     });
                                   }
                                 },
-                                selectedColor: kPrimaryBlue,
                               ),
                             );
                           }).toList(),
@@ -1024,10 +1048,11 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                       const SizedBox(height: 24),
                       
                       Container(
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color: isBalanced ? kPrimaryBlue.withValues(alpha: 0.1) : Colors.redAccent.withValues(alpha: 0.1),
+                          color: isBalanced ? kDarkBlue.withValues(alpha: 0.05) : const Color(0xFFFFEBEE),
                           borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: isBalanced ? kDarkBlue.withValues(alpha: 0.15) : const Color(0xFFFFCDD2)),
                         ),
                         child: Row(
                           children: [
@@ -1038,12 +1063,13 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                   Text(
                                     isBalanced ? 'BALANCED' : 'UNBALANCED',
                                     style: TextStyle(
-                                      color: isBalanced ? kPrimaryBlue : Colors.redAccent,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 10,
+                                      color: isBalanced ? kDarkBlue : const Color(0xFFC62828),
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 11,
                                       letterSpacing: 1.2,
                                     ),
                                   ),
+                                  const SizedBox(height: 2),
                                   Text(
                                     isBalanced 
                                       ? 'Total amount is fully split and accounted for.' 
@@ -1051,9 +1077,9 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                           ? 'Remaining: ${diffPct.toStringAsFixed(1)}%' 
                                           : 'Remaining: ${getCurrencySymbol(selectedCurrency)}${formatAmount(diff)}'),
                                     style: TextStyle(
-                                      color: isBalanced ? kDarkBlue : Colors.redAccent,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
+                                      color: isBalanced ? kDarkBlue : const Color(0xFFC62828),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
                                     ),
                                   ),
                                 ],
@@ -1061,6 +1087,8 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                             ),
                             FilledButton.icon(
                               style: FilledButton.styleFrom(
+                                backgroundColor: kDarkBlue,
+                                foregroundColor: Colors.white,
                                 minimumSize: const Size(120, 56),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                               ),
@@ -1591,8 +1619,12 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                             heroTag: 'ai_scan_receipt_fab',
                             mini: true,
                             backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF0077A8),
-                            elevation: 3,
+                            foregroundColor: kDarkBlue,
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(color: kDarkBlue.withValues(alpha: 0.15)),
+                            ),
                             tooltip: 'Scan Receipt / Bill (Google AI)',
                             onPressed: () {
                               showReceiptScanOptionsSheet(
@@ -1605,14 +1637,18 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                 },
                               );
                             },
-                            child: const Icon(Icons.document_scanner_outlined, size: 20),
+                            child: const Icon(Icons.document_scanner_outlined, size: 20, color: kDarkBlue),
                           ),
                           const SizedBox(width: 8),
                           FloatingActionButton.extended(
                             heroTag: 'ai_smart_split_fab',
                             backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF1A73E8),
-                            elevation: 3,
+                            foregroundColor: kDarkBlue,
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(color: kDarkBlue.withValues(alpha: 0.15)),
+                            ),
                             onPressed: () {
                               showSmartSplitSheet(
                                 context,
@@ -1622,15 +1658,19 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                                 },
                               );
                             },
-                            icon: const Icon(Icons.auto_awesome, size: 18, color: Color(0xFF1A73E8)),
-                            label: const Text('AI Split', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            icon: const Icon(Icons.auto_awesome, size: 18, color: kPrimaryBlue),
+                            label: const Text('AI Split', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: kDarkBlue)),
                           ),
                           const SizedBox(width: 10),
                           FloatingActionButton.extended(
                             heroTag: 'add_expense_fab',
+                            backgroundColor: kDarkBlue,
+                            foregroundColor: Colors.white,
+                            elevation: 3,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             onPressed: () => _openAddEditExpense(appState, resolvedMembers),
-                            icon: const Icon(Icons.add_rounded, size: 28),
-                            label: const Text('Expense'),
+                            icon: const Icon(Icons.add_rounded, size: 26, color: Colors.white),
+                            label: const Text('Expense', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white)),
                           ),
                         ],
                       ),

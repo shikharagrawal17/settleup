@@ -1,3 +1,4 @@
+import 'app_shell_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -25,16 +26,16 @@ Future<void> showGeminiApiKeyDialog(BuildContext context) async {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: kPrimaryBlue.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.auto_awesome, color: Colors.blueAccent, size: 24),
+              child: const Icon(Icons.auto_awesome, color: kPrimaryBlue, size: 24),
             ),
             const SizedBox(width: 12),
             const Expanded(
               child: Text(
                 'Google Gemini AI',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kDarkBlue),
               ),
             ),
           ],
@@ -194,10 +195,10 @@ Future<void> showReceiptScanOptionsSheet(
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: kPrimaryBlue.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.document_scanner_rounded, color: Colors.blueAccent, size: 22),
+                child: const Icon(Icons.document_scanner_rounded, color: kPrimaryBlue, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -206,13 +207,13 @@ Future<void> showReceiptScanOptionsSheet(
                   children: [
                     const Text(
                       'Scan Bill or Receipt',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: kDarkBlue),
                     ),
                     Text(
                       hasKey 
                         ? 'Google AI auto-fills payer, category & split ratios' 
                         : 'Fast local OCR (Add Gemini key for deep context)',
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF5A6E85)),
                     ),
                   ],
                 ),
@@ -236,13 +237,13 @@ Future<void> showReceiptScanOptionsSheet(
             leading: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.indigo.shade50,
+                color: kDarkBlue.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.camera_alt_outlined, color: Colors.indigo),
+              child: const Icon(Icons.camera_alt_outlined, color: kDarkBlue),
             ),
-            title: const Text('Take Photo (Camera)', style: TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: const Text('Point camera directly at paper invoice or bill'),
+            title: const Text('Take Photo (Camera)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: kDarkBlue)),
+            subtitle: const Text('Point camera directly at paper invoice or bill', style: TextStyle(fontSize: 12, color: Color(0xFF5A6E85))),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onTap: () async {
               Navigator.pop(sheetCtx);
@@ -261,13 +262,13 @@ Future<void> showReceiptScanOptionsSheet(
             leading: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.teal.shade50,
+                color: kPrimaryBlue.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.photo_library_outlined, color: Colors.teal),
+              child: const Icon(Icons.photo_library_outlined, color: kDarkBlue),
             ),
-            title: const Text('Choose from Photos / Gallery', style: TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: const Text('Select UPI screenshot, Swiggy/Zomato, or store bill'),
+            title: const Text('Choose from Photos / Gallery', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: kDarkBlue)),
+            subtitle: const Text('Select UPI screenshot, Swiggy/Zomato, or store bill', style: TextStyle(fontSize: 12, color: Color(0xFF5A6E85))),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onTap: () async {
               Navigator.pop(sheetCtx);
@@ -403,7 +404,7 @@ Future<void> showSmartSplitSheet(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF4285F4), Color(0xFF9B51E0)],
+                        colors: [kDarkBlue, Color(0xFF004A75)],
                       ),
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -416,7 +417,7 @@ Future<void> showSmartSplitSheet(
                       children: [
                         Text(
                           'Smart AI Split',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kDarkBlue),
                         ),
                         Text(
                           'Powered by Google Gemini 3.5 Flash',
@@ -435,20 +436,20 @@ Future<void> showSmartSplitSheet(
               const SizedBox(height: 16),
               const Text(
                 'Type or speak what happened:',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kDarkBlue),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: textController,
                 maxLines: 3,
-                style: const TextStyle(fontSize: 14),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: kDarkBlue),
                 decoration: InputDecoration(
                   hintText: 'e.g. Shikhar paid ₹1500 for team pizza with Aman and Rahul...',
                   hintStyle: const TextStyle(color: Colors.black38),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF4285F4), width: 2),
+                    borderSide: const BorderSide(color: kPrimaryBlue, width: 2),
                   ),
                 ),
               ),
@@ -463,8 +464,9 @@ Future<void> showSmartSplitSheet(
                 runSpacing: 6,
                 children: sampleChips.map((chip) {
                   return ActionChip(
-                    label: Text(chip, style: const TextStyle(fontSize: 11)),
-                    backgroundColor: Colors.grey.shade100,
+                    label: Text(chip, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: kDarkBlue)),
+                    backgroundColor: Colors.white,
+                    side: BorderSide(color: kDarkBlue.withValues(alpha: 0.15)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     onPressed: () {
                       setState(() {
@@ -502,7 +504,7 @@ Future<void> showSmartSplitSheet(
                 height: 48,
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1A73E8),
+                    backgroundColor: kDarkBlue,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
