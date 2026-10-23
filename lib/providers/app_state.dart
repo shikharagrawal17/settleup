@@ -379,6 +379,16 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     try {
+      if (kIsWeb) {
+        // Use Firebase Auth signInWithPopup on web to avoid origin_mismatch errors on dynamic localhost ports
+        final GoogleAuthProvider provider = GoogleAuthProvider();
+        provider.addScope('email');
+        provider.addScope('profile');
+        final userCredential = await _auth.signInWithPopup(provider);
+        await _ensureUserProfile(userCredential.user);
+        return;
+      }
+
       final googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         _isSigningIn = false;
