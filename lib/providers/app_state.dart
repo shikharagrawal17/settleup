@@ -1155,6 +1155,17 @@ class AppState extends ChangeNotifier {
         });
   }
 
+    Future<List<GroupMember>> _getGroupMembers(String groupId) async {
+    try {
+      final snap = await _groupDoc(groupId).get();
+      if (snap.exists && snap.data() != null) {
+        final raw = snap.data()!['members'] as List<dynamic>? ?? [];
+        return raw.map((m) => GroupMember.fromJson(m as Map<String, dynamic>)).toList();
+      }
+    } catch (_) {}
+    return const [];
+  }
+
   Future<void> addExpense({
     required String groupId,
     required Expense expense,
@@ -1169,6 +1180,10 @@ class AppState extends ChangeNotifier {
     final batch = _firestore.batch();
     batch.set(_expensesCol(groupId).doc(), expenseData);
     
+    // Resolve canonical member IDs to guarantee double-entry balance consistency
+    final members = await _getGroupMembers(groupId);
+    final canonPayerId = resolveCanonicalMemberId(expense.payerId, members);
+
     // Calculate and apply netBalance deltas (using base currency if available)
     final scale = (expense.baseAmount != null && expense.amount > 0) 
         ? (expense.baseAmount! / expense.amount) 
@@ -1176,9 +1191,10 @@ class AppState extends ChangeNotifier {
     final effectiveTotal = expense.baseAmount ?? expense.amount;
 
     final deltas = <String, double>{};
-    deltas[expense.payerId] = effectiveTotal;
+    deltas[canonPayerId] = effectiveTotal;
     expense.shares.forEach((memberId, shareAmount) {
-      deltas[memberId] = (deltas[memberId] ?? 0.0) - (shareAmount * scale);
+      final canonShareId = resolveCanonicalMemberId(memberId, members);
+      deltas[canonShareId] = (deltas[canonShareId] ?? 0.0) - (shareAmount * scale);
     });
 
     final groupUpdates = <String, dynamic>{
@@ -1219,7 +1235,11 @@ class AppState extends ChangeNotifier {
     // 1. Update expense doc
     batch.set(_expensesCol(groupId).doc(oldExpense.id), newExpense.toJson());
     
-    // 2. Update netBalances
+    // 2. Resolve canonical member IDs to prevent fragmented ledger keys
+    final members = await _getGroupMembers(groupId);
+    final oldCanonPayerId = resolveCanonicalMemberId(oldExpense.payerId, members);
+    final newCanonPayerId = resolveCanonicalMemberId(newExpense.payerId, members);
+
     final oldScale = (oldExpense.baseAmount != null && oldExpense.amount > 0) ? (oldExpense.baseAmount! / oldExpense.amount) : 1.0;
     final oldEffective = oldExpense.baseAmount ?? oldExpense.amount;
     
@@ -1228,14 +1248,16 @@ class AppState extends ChangeNotifier {
 
     final deltas = <String, double>{};
     // Revert old
-    deltas[oldExpense.payerId] = -oldEffective;
+    deltas[oldCanonPayerId] = (deltas[oldCanonPayerId] ?? 0.0) - oldEffective;
     oldExpense.shares.forEach((memberId, shareAmount) {
-      deltas[memberId] = (deltas[memberId] ?? 0.0) + (shareAmount * oldScale);
+      final canonShareId = resolveCanonicalMemberId(memberId, members);
+      deltas[canonShareId] = (deltas[canonShareId] ?? 0.0) + (shareAmount * oldScale);
     });
     // Add new
-    deltas[newExpense.payerId] = (deltas[newExpense.payerId] ?? 0.0) + newEffective;
+    deltas[newCanonPayerId] = (deltas[newCanonPayerId] ?? 0.0) + newEffective;
     newExpense.shares.forEach((memberId, shareAmount) {
-      deltas[memberId] = (deltas[memberId] ?? 0.0) - (shareAmount * newScale);
+      final canonShareId = resolveCanonicalMemberId(memberId, members);
+      deltas[canonShareId] = (deltas[canonShareId] ?? 0.0) - (shareAmount * newScale);
     });
 
     final groupUpdates = <String, dynamic>{
@@ -1243,7 +1265,7 @@ class AppState extends ChangeNotifier {
       'totalSpent': FieldValue.increment(newEffective - oldEffective),
     };
     for (final entry in deltas.entries) {
-      if (entry.value != 0) {
+      if (entry.value.abs() > 0.001) {
         groupUpdates['netBalances.${entry.key}'] = FieldValue.increment(entry.value);
       }
     }
@@ -1268,6 +1290,7 @@ class AppState extends ChangeNotifier {
       batch: batch,
     );
     await batch.commit();
+    notifyListeners();
   }
 
   Future<void> deleteExpense({
@@ -1277,6 +1300,9 @@ class AppState extends ChangeNotifier {
     final batch = _firestore.batch();
     batch.delete(_expensesCol(groupId).doc(expense.id));
     
+    final members = await _getGroupMembers(groupId);
+    final canonPayerId = resolveCanonicalMemberId(expense.payerId, members);
+
     // Calculate scale and effective total for reversal
     final scale = (expense.baseAmount != null && expense.amount > 0) 
         ? (expense.baseAmount! / expense.amount) 
@@ -1284,9 +1310,10 @@ class AppState extends ChangeNotifier {
     final effectiveTotal = expense.baseAmount ?? expense.amount;
 
     final deltas = <String, double>{};
-    deltas[expense.payerId] = -effectiveTotal;
+    deltas[canonPayerId] = -effectiveTotal;
     expense.shares.forEach((memberId, shareAmount) {
-      deltas[memberId] = (deltas[memberId] ?? 0.0) + (shareAmount * scale);
+      final canonShareId = resolveCanonicalMemberId(memberId, members);
+      deltas[canonShareId] = (deltas[canonShareId] ?? 0.0) + (shareAmount * scale);
     });
 
     final groupUpdates = <String, dynamic>{
@@ -1307,6 +1334,7 @@ class AppState extends ChangeNotifier {
       batch: batch,
     );
     await batch.commit();
+    notifyListeners();
   }
 
   // ─── Settlement CRUD ───────────────────────────────────────────────────
@@ -1332,6 +1360,10 @@ class AppState extends ChangeNotifier {
     final user = _auth.currentUser;
     if (user == null) return;
 
+    final members = await _getGroupMembers(groupId);
+    final canonFromId = resolveCanonicalMemberId(record.fromMemberId, members);
+    final canonToId = resolveCanonicalMemberId(record.toMemberId, members);
+
     final recordData = record.toJson();
     recordData['createdBy'] = user.uid;
     recordData['status'] = confirmed ? SettlementStatus.confirmed.name : SettlementStatus.pending.name;
@@ -1342,20 +1374,20 @@ class AppState extends ChangeNotifier {
 
     final groupUpdates = <String, dynamic>{'updatedAt': FieldValue.serverTimestamp()};
     if (confirmed) {
-      groupUpdates['netBalances.${record.fromMemberId}'] = FieldValue.increment(record.amount);
-      groupUpdates['netBalances.${record.toMemberId}'] = FieldValue.increment(-record.amount);
+      groupUpdates['netBalances.$canonFromId'] = FieldValue.increment(record.amount);
+      groupUpdates['netBalances.$canonToId'] = FieldValue.increment(-record.amount);
     }
     batch.update(_groupDoc(groupId), groupUpdates);
 
     await _logActivity(
       groupId: groupId,
       action: confirmed ? ActivityAction.settlementConfirmed : ActivityAction.settlementRecorded,
-      targetName: "Payment to ${record.toName}",
+      targetName: 'Payment to ${record.toName}',
       amount: record.amount,
       metadata: {
         'settlementId': docRef.id,
-        'fromMemberId': record.fromMemberId,
-        'toMemberId': record.toMemberId,
+        'fromMemberId': canonFromId,
+        'toMemberId': canonToId,
       },
       batch: batch,
     );
@@ -1368,6 +1400,7 @@ class AppState extends ChangeNotifier {
       final profile = UserProfile.fromJson(user.uid, profileSnap.data()!);
       syncGroupMembers(groupId, profile); // Fire and forget
     }
+    notifyListeners();
   }
 
   Future<void> confirmSettlement({
@@ -1377,6 +1410,10 @@ class AppState extends ChangeNotifier {
     final user = _auth.currentUser;
     if (user == null) return;
     if (record.status == SettlementStatus.confirmed) return;
+
+    final members = await _getGroupMembers(groupId);
+    final canonFromId = resolveCanonicalMemberId(record.fromMemberId, members);
+    final canonToId = resolveCanonicalMemberId(record.toMemberId, members);
 
     final batch = _firestore.batch();
     
@@ -1388,14 +1425,14 @@ class AppState extends ChangeNotifier {
     });
 
     final groupUpdates = <String, dynamic>{'updatedAt': FieldValue.serverTimestamp()};
-    groupUpdates['netBalances.${record.fromMemberId}'] = FieldValue.increment(record.amount);
-    groupUpdates['netBalances.${record.toMemberId}'] = FieldValue.increment(-record.amount);
+    groupUpdates['netBalances.$canonFromId'] = FieldValue.increment(record.amount);
+    groupUpdates['netBalances.$canonToId'] = FieldValue.increment(-record.amount);
     batch.update(_groupDoc(groupId), groupUpdates);
 
     _logActivity(
       groupId: groupId,
       action: ActivityAction.settlementConfirmed,
-      targetName: "Payment from ${record.fromName}",
+      targetName: 'Payment from ${record.fromName}',
       amount: record.amount,
       batch: batch,
     );
@@ -1407,12 +1444,17 @@ class AppState extends ChangeNotifier {
       final profile = UserProfile.fromJson(user.uid, profileSnap.data()!);
       syncGroupMembers(groupId, profile); // Fire and forget
     }
+    notifyListeners();
   }
 
   Future<void> disputeSettlement({
     required String groupId,
     required SettlementRecord record,
   }) async {
+    final members = await _getGroupMembers(groupId);
+    final canonFromId = resolveCanonicalMemberId(record.fromMemberId, members);
+    final canonToId = resolveCanonicalMemberId(record.toMemberId, members);
+
     final batch = _firestore.batch();
     batch.update(_settlementsCol(groupId).doc(record.id), {
       'status': SettlementStatus.disputed.name,
@@ -1422,8 +1464,8 @@ class AppState extends ChangeNotifier {
     final groupUpdates = <String, dynamic>{'updatedAt': FieldValue.serverTimestamp()};
     // If the settlement was already confirmed, reversing it requires adjusting netBalances!
     if (record.status == SettlementStatus.confirmed) {
-      groupUpdates['netBalances.${record.fromMemberId}'] = FieldValue.increment(-record.amount);
-      groupUpdates['netBalances.${record.toMemberId}'] = FieldValue.increment(record.amount);
+      groupUpdates['netBalances.$canonFromId'] = FieldValue.increment(-record.amount);
+      groupUpdates['netBalances.$canonToId'] = FieldValue.increment(record.amount);
     }
     batch.update(_groupDoc(groupId), groupUpdates);
 
@@ -1431,24 +1473,29 @@ class AppState extends ChangeNotifier {
     _logActivity(
       groupId: groupId,
       action: ActivityAction.settlementDisputed,
-      targetName: "Payment from ${record.fromName}",
+      targetName: 'Payment from ${record.fromName}',
       amount: record.amount,
       batch: batch,
     );
     await batch.commit();
+    notifyListeners();
   }
 
   Future<void> deleteSettlement({
     required String groupId,
     required SettlementRecord record,
   }) async {
+    final members = await _getGroupMembers(groupId);
+    final canonFromId = resolveCanonicalMemberId(record.fromMemberId, members);
+    final canonToId = resolveCanonicalMemberId(record.toMemberId, members);
+
     final batch = _firestore.batch();
     batch.delete(_settlementsCol(groupId).doc(record.id));
     
     final groupUpdates = <String, dynamic>{'updatedAt': FieldValue.serverTimestamp()};
     if (record.status == SettlementStatus.confirmed) {
-      groupUpdates['netBalances.${record.fromMemberId}'] = FieldValue.increment(-record.amount);
-      groupUpdates['netBalances.${record.toMemberId}'] = FieldValue.increment(record.amount);
+      groupUpdates['netBalances.$canonFromId'] = FieldValue.increment(-record.amount);
+      groupUpdates['netBalances.$canonToId'] = FieldValue.increment(record.amount);
     }
     batch.update(_groupDoc(groupId), groupUpdates);
     
@@ -1456,12 +1503,13 @@ class AppState extends ChangeNotifier {
     _logActivity(
       groupId: groupId,
       action: ActivityAction.settlementDeleted,
-      targetName: "Payment from ${record.fromName}",
+      targetName: 'Payment from ${record.fromName}',
       batch: batch,
       amount: record.amount,
     );
 
     await batch.commit();
+    notifyListeners();
   }
 
   // ─── Migration ─────────────────────────────────────────────────────────
@@ -1474,6 +1522,7 @@ class AppState extends ChangeNotifier {
       updates['netBalances.${entry.key}'] = entry.value;
     }
     await _groupDoc(groupId).update(updates);
+    notifyListeners();
   }
 
   // ─── Validation ────────────────────────────────────────────────────────

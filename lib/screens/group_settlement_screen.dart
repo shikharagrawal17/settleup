@@ -1316,25 +1316,38 @@ class _GroupSettlementScreenState extends State<GroupSettlementScreen> {
                     if (setSnap.hasError) return _ErrorScaffold(error: setSnap.error);
                     final settlements = setSnap.data ?? const <SettlementRecord>[];
 
-                    final isUnmigrated = _group.netBalances.isEmpty && (expenses.isNotEmpty || settlements.isNotEmpty);
-                    
-                    final balances = isUnmigrated
-                        ? computeMemberBalances(
-                            members: resolvedMembers,
-                            expenses: expenses,
-                            settlements: settlements,
-                          )
-                        : _group.netBalances;
+                    // Ground-truth financial balances computed directly from the ledger
+                    final ledgerBalances = computeMemberBalances(
+                      members: resolvedMembers,
+                      expenses: expenses,
+                      settlements: settlements,
+                    );
+                    final actualTotalSpent = expenses.fold<double>(
+                      0,
+                      (s, e) => s + (e.baseAmount ?? e.amount),
+                    );
 
+                    final balances = ledgerBalances;
                     final transactions = settleBalances(resolvedMembers, balances);
-                    
-                    final totalSpent = isUnmigrated 
-                        ? expenses.fold<double>(0, (s, e) => s + e.amount)
-                        : _group.totalSpent;
+                    final totalSpent = actualTotalSpent;
 
-                    if (isUnmigrated && expenses.isNotEmpty) {
+                    // Audit & auto-reconciliation: ensure Firestore cached netBalances matches ground truth
+                    bool needsReconciliation = _group.netBalances.isEmpty && (expenses.isNotEmpty || settlements.isNotEmpty);
+                    if (!needsReconciliation) {
+                      for (final entry in balances.entries) {
+                        final cached = _group.netBalances[entry.key] ?? 0.0;
+                        if ((cached - entry.value).abs() > 0.01) {
+                          needsReconciliation = true;
+                          break;
+                        }
+                      }
+                      if (!needsReconciliation && (_group.totalSpent - actualTotalSpent).abs() > 0.01) {
+                        needsReconciliation = true;
+                      }
+                    }
+
+                    if (needsReconciliation && (expenses.isNotEmpty || settlements.isNotEmpty)) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        // Background migration
                         appState.migrateGroupBalances(_group.id, balances, totalSpent);
                       });
                     }

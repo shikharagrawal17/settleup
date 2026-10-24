@@ -96,6 +96,36 @@ Map<String, double> buildMultiplierShareMap({
   return result;
 }
 
+String _cleanPhoneDigits(String raw) {
+  var digits = raw.replaceAll(RegExp(r'\D'), '');
+  if (digits.length == 10) return '+91$digits';
+  if (digits.length == 12 && digits.startsWith('91')) return '+$digits';
+  if (digits.length == 11 && digits.startsWith('0')) return '+91${digits.substring(1)}';
+  if (raw.startsWith('+')) return '+$digits';
+  return digits;
+}
+
+/// Resolves any member identifier (m.id, m.uid, or phone number)
+/// to the single canonical GroupMember.id within the group.
+String resolveCanonicalMemberId(String rawId, List<GroupMember> members) {
+  if (rawId.isEmpty) return rawId;
+  for (final m in members) {
+    if (m.id == rawId) return m.id;
+  }
+  for (final m in members) {
+    if (m.uid != null && m.uid == rawId) return m.id;
+  }
+  final cleanRaw = _cleanPhoneDigits(rawId);
+  if (cleanRaw.isNotEmpty) {
+    for (final m in members) {
+      if (m.phoneNumber != null && _cleanPhoneDigits(m.phoneNumber!) == cleanRaw) {
+        return m.id;
+      }
+    }
+  }
+  return rawId;
+}
+
 /// Computes the net balance for every member across expenses and settlements.
 /// Positive = member is owed money (gets back). Negative = member owes money.
 Map<String, double> computeMemberBalances({
@@ -109,6 +139,7 @@ Map<String, double> computeMemberBalances({
   }
 
   // Expenses: payer credited, each share debited.
+  // All member identifiers are mapped to their canonical GroupMember.id.
   for (final expense in expenses) {
     final scale = (expense.baseAmount != null && expense.amount > 0) 
         ? (expense.baseAmount! / expense.amount) 
@@ -116,18 +147,22 @@ Map<String, double> computeMemberBalances({
         
     final effectiveAmount = expense.baseAmount ?? expense.amount;
 
-    balances[expense.payerId] =
-        (balances[expense.payerId] ?? 0.0) + effectiveAmount;
+    final canonPayerId = resolveCanonicalMemberId(expense.payerId, members);
+    balances[canonPayerId] = (balances[canonPayerId] ?? 0.0) + effectiveAmount;
+
     for (final entry in expense.shares.entries) {
-      balances[entry.key] = (balances[entry.key] ?? 0.0) - (entry.value * scale);
+      final canonShareId = resolveCanonicalMemberId(entry.key, members);
+      balances[canonShareId] = (balances[canonShareId] ?? 0.0) - (entry.value * scale);
     }
   }
 
   // Settlements: payer (from) balance goes up, payee (to) balance goes down.
   for (final s in settlements) {
     if (s.status == SettlementStatus.confirmed) {
-      balances[s.fromMemberId] = (balances[s.fromMemberId] ?? 0.0) + s.amount;
-      balances[s.toMemberId] = (balances[s.toMemberId] ?? 0.0) - s.amount;
+      final canonFromId = resolveCanonicalMemberId(s.fromMemberId, members);
+      final canonToId = resolveCanonicalMemberId(s.toMemberId, members);
+      balances[canonFromId] = (balances[canonFromId] ?? 0.0) + s.amount;
+      balances[canonToId] = (balances[canonToId] ?? 0.0) - s.amount;
     }
   }
 
@@ -243,10 +278,20 @@ List<SettlementTransaction> settleBalances(
 ) {
   final memberMap = {for (final m in members) m.id: m};
 
+  // Reconcile and canonicalize incoming balances map so no transactions are dropped
+  final canonicalBalances = <String, double>{};
+  for (final m in members) {
+    canonicalBalances[m.id] = 0.0;
+  }
+  for (final entry in balances.entries) {
+    final canonId = resolveCanonicalMemberId(entry.key, members);
+    canonicalBalances[canonId] = (canonicalBalances[canonId] ?? 0.0) + entry.value;
+  }
+
   final creditors = <_BalanceNode>[];
   final debtors = <_BalanceNode>[];
 
-  for (final entry in balances.entries) {
+  for (final entry in canonicalBalances.entries) {
     final member = memberMap[entry.key];
     if (member == null) continue;
     // Use a small epsilon to avoid settling tiny rounding errors

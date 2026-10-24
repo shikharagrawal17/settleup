@@ -40,7 +40,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final appState = context.read<AppState>();
+      final appState = context.watch<AppState>();
       appState.initMessaging();
       appState.loadLocalContacts();
 
@@ -495,6 +495,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                                     profile: profile,
                                                     currentUserId: widget.user.uid,
                                                     onDelete: (id) => _handleDeleteGroup(appState, id, regularGroups.firstWhere((g) => g.id == id).name),
+                                                    onRefresh: () => setState(() {}),
                                                   ),
                                               ],
                                             );
@@ -521,7 +522,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                                     ),
                                                   )
                                                 else
-                                                  _FriendsList(financials: financials, currentProfile: profile),
+                                                  _FriendsList(financials: financials, currentProfile: profile, onRefresh: () => setState(() {})),
                                               ],
                                             );
                                           } else {
@@ -567,23 +568,33 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       final expenses = await appState.expensesStream(group.id).first;
       final settlementsSnapshot = await appState.settlementsStream(group.id).first;
       
+      final canonMyId = resolveCanonicalMemberId(uid, group.members);
+      final Set<String> myIdsInGroup = {canonMyId};
+      String? myPrimaryIdInGroup = canonMyId;
+
+      for (final m in group.members) {
+        final mPhone = (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) 
+            ? AppState.normalisePhone(m.phoneNumber!) 
+            : null;
+
+        final isMe = m.id == uid || 
+                     (m.uid != null && m.uid == uid) || 
+                     (userPhone != null && mPhone != null && mPhone == userPhone) ||
+                     (profile.email.isNotEmpty && m.phoneNumber != null && m.phoneNumber!.toLowerCase().trim() == profile.email.toLowerCase().trim());
+        
+        if (isMe) {
+          myIdsInGroup.add(m.id);
+        }
+      }
+
       // Look for pending settlements related to me
       for (final s in settlementsSnapshot) {
         if (s.status == SettlementStatus.pending) {
-          final sToPhone = s.toMemberId.startsWith('manual_') && group.members.any((m) => m.id == s.toMemberId) 
-              ? AppState.normalisePhone(group.members.firstWhere((m) => m.id == s.toMemberId).phoneNumber ?? '') 
-              : null;
-          final sFromPhone = s.fromMemberId.startsWith('manual_') && group.members.any((m) => m.id == s.fromMemberId) 
-              ? AppState.normalisePhone(group.members.firstWhere((m) => m.id == s.fromMemberId).phoneNumber ?? '') 
-              : null;
+          final canonFrom = resolveCanonicalMemberId(s.fromMemberId, group.members);
+          final canonTo = resolveCanonicalMemberId(s.toMemberId, group.members);
 
-          final isReceiver = s.toMemberId == uid || 
-                            (userPhone != null && sToPhone != null && sToPhone == userPhone) ||
-                            (s.toMemberId.startsWith('manual_') && s.toName == profile.displayName);
-          
-          final isPayer = s.fromMemberId == uid || 
-                         (userPhone != null && sFromPhone != null && sFromPhone == userPhone) ||
-                         (s.fromMemberId.startsWith('manual_') && s.fromName == profile.displayName);
+          final isReceiver = myIdsInGroup.contains(canonTo);
+          final isPayer = myIdsInGroup.contains(canonFrom);
 
           if (isReceiver || isPayer) {
             pendingSettlements.add(_PendingSettlementBatch(
@@ -604,24 +615,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       );
       
       double myNetRelGroup = 0;
-      final Set<String> myIdsInGroup = {};
-      String? myPrimaryIdInGroup;
-      
-      for (final m in group.members) {
-        final mPhone = (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) 
-            ? AppState.normalisePhone(m.phoneNumber!) 
-            : null;
-
-        final isMe = m.id == uid || 
-                     (m.uid != null && m.uid == uid) || 
-                     (userPhone != null && mPhone != null && mPhone == userPhone) ||
-                     (profile.email.isNotEmpty && m.phoneNumber != null && m.phoneNumber!.toLowerCase().trim() == profile.email.toLowerCase().trim());
-        
-        if (isMe) {
-          myNetRelGroup += balances[m.id] ?? 0.0;
-          myIdsInGroup.add(m.id);
-          myPrimaryIdInGroup ??= m.id;
-        }
+      for (final id in myIdsInGroup) {
+        myNetRelGroup += balances[id] ?? 0.0;
       }
 
       double convertedMyNet = myNetRelGroup;
@@ -689,7 +684,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         friendBalances[friendKey]!.contributions.add(_GroupContribution(
           groupId: group.id,
           groupName: group.name,
-          myMemberId: myPrimaryIdInGroup ?? uid,
+          myMemberId: myPrimaryIdInGroup,
           friendMemberId: m.id,
           balance: bilateralDebt, // native group currency amount
           currency: group.currency,
@@ -840,9 +835,10 @@ class _DashboardSummary extends StatelessWidget {
 }
 
 class _FriendsList extends StatelessWidget {
-  const _FriendsList({required this.financials, required this.currentProfile});
+  const _FriendsList({required this.financials, required this.currentProfile, this.onRefresh});
   final _HomeFinancials financials;
   final UserProfile currentProfile;
+  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -955,13 +951,14 @@ class _FriendsList extends StatelessWidget {
     );
   }
 
-  void _openSettleAllSheet(BuildContext context, _FriendBalance friend, UserProfile currentProfile) {
-    showModalBottomSheet(
+  void _openSettleAllSheet(BuildContext context, _FriendBalance friend, UserProfile currentProfile) async {
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _SettleAllSheet(friend: friend, currentProfile: currentProfile),
     );
+    onRefresh?.call();
   }
 }
 
@@ -1614,12 +1611,14 @@ class _GroupList extends StatelessWidget {
     required this.profile,
     required this.currentUserId,
     required this.onDelete,
+    this.onRefresh,
   });
 
   final List<SettlementGroup> groups;
   final UserProfile profile;
   final String currentUserId;
   final Function(String) onDelete;
+  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -1634,12 +1633,14 @@ class _GroupList extends StatelessWidget {
           group: group,
           profile: profile,
           currentUserId: currentUserId,
-          onOpen: () {
-            Navigator.of(context).push(
+          onRefresh: onRefresh,
+          onOpen: () async {
+            await Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => GroupSettlementScreen(group: group, profile: profile),
               ),
             );
+            onRefresh?.call();
           },
           onDelete: () => onDelete(group.id),
         );
@@ -1655,6 +1656,7 @@ class _GroupCard extends StatelessWidget {
     required this.currentUserId,
     required this.onOpen,
     required this.onDelete,
+    this.onRefresh,
   });
 
   final SettlementGroup group;
@@ -1662,6 +1664,7 @@ class _GroupCard extends StatelessWidget {
   final String currentUserId;
   final VoidCallback onOpen;
   final VoidCallback onDelete;
+  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -1709,8 +1712,8 @@ class _GroupCard extends StatelessWidget {
               ),
             ),
             IconButton(
-              onPressed: () {
-                Navigator.of(context).push(
+              onPressed: () async {
+                await Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => GroupSettlementScreen(
                       group: group, 
@@ -1719,6 +1722,7 @@ class _GroupCard extends StatelessWidget {
                     ),
                   ),
                 );
+                onRefresh?.call();
               },
               icon: const Icon(Icons.add_circle_outline_rounded, color: kPrimaryBlue, size: 24),
               tooltip: 'Add Expense',
