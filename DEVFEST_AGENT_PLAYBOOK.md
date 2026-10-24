@@ -20,6 +20,124 @@ Maintainers do **not** merge superficial AI wrappers, noisy diffs, or unverified
 
 ---
 
+## 🛡️ The 8 Non-Negotiable Agent Guardrails
+
+To prevent hallucination, state corruption, or rejected pull requests, the agent MUST enforce these guardrails at all times:
+
+```
+[GUARDRAIL 1: ZERO GHOST DEPENDENCIES]
+Never add third-party packages that have unverified native bindings, break Gradle/CocoaPods, or lack active maintenance. Always prefer official Google open-source packages (e.g. google_generative_ai, cloud_firestore, firebase_core).
+
+[GUARDRAIL 2: ZERO COMMITTED BINARIES (GIT HYGIENE)]
+NEVER commit compiled artifacts (.apk, .aab, .mp4, .tar.gz, .zip) to Git tracking. Build binaries locally, place them in gitignored paths or project root (e.g. bharat-dues-release.apk in .gitignore), and distribute via release links or Firebase Hosting.
+
+[GUARDRAIL 3: STRICT SECRET SANITIZATION]
+Never hardcode API keys, service account JSONs, private tokens, or personal phone numbers. Always use compile-time environment definitions (--dart-define), secure local configs, or fallback demo modes.
+
+[GUARDRAIL 4: MATHEMATICAL CONSERVATION LAW]
+In any financial, split, or ledger engine, balance conservation is an inviolable invariant:
+    ∑ (Balances of all members) ≡ 0.00
+Always write automated unit tests proving this invariant across all mutation lifecycles.
+
+[GUARDRAIL 5: ATOMIC BATCH MUTATION (NO DRIFT)]
+Never execute un-batched fragmented writes across collections. Any change modifying a subcollection doc (expense/settlement) and an aggregate document (group netBalances) MUST execute inside an atomic batch or transaction.
+
+[GUARDRAIL 6: ANTI-SLOP VISUAL DIRECTIVE]
+Never use generic AI dark-glass gradients, unreadable low-contrast gray-on-gray text, or browser default typography. Strictly adhere to production design systems with AAA contrast ratios and Google Fonts (Outfit, Inter, Roboto).
+
+[GUARDRAIL 7: DUAL-LAYER AI RESILIENCY]
+Every AI feature must feature a two-tier architecture:
+1. Instant local heuristic/regex parser (zero latency, offline).
+2. Cloud/on-device Gemini/Gemma layer for semantic extraction and validation.
+If network fails or quota is exhausted, the app must NEVER crash.
+
+[GUARDRAIL 8: FAST-FORWARD MERGE CLEANLINESS]
+All work must live on a dedicated feature branch (e.g. feat/devfest-google-ai). Commits must follow Conventional Commits (feat:, fix:, test:, docs:) and flutter analyze must pass with 0 issues.
+```
+
+---
+
+## ⚡ High-Performance Code Optimizations
+
+When auditing and hardening open-source engines, apply these architectural optimizations:
+
+### 1. O(1) Canonical Member Indexing
+Avoid repeated linear scans $O(M)$ over members across nested loops ($O(E \times S \times M)$). Build a hash index once per calculation cycle:
+```dart
+Map<String, String> buildCanonicalMemberIndex(List<GroupMember> members) {
+  final index = <String, String>{};
+  for (final m in members) {
+    index[m.id] = m.id;
+    if (m.uid != null && m.uid!.isNotEmpty) index[m.uid!] = m.id;
+    if (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) {
+      final clean = cleanPhoneDigits(m.phoneNumber!);
+      index[clean] = m.id;
+      final rawDigits = m.phoneNumber!.replaceAll(RegExp(r'\D'), '');
+      if (rawDigits.length >= 10) {
+        index[rawDigits.substring(rawDigits.length - 10)] = m.id;
+      }
+    }
+  }
+  return index;
+}
+```
+
+### 2. Floating-Point Precision Guardrail
+IEEE-754 floating point arithmetic introduces infinitesimal artifacts (e.g. `-0.0` or `1.421085e-14`). Cleanse all balance maps before presentation:
+```dart
+for (final key in balances.keys.toList()) {
+  final raw = balances[key]!;
+  balances[key] = raw.abs() < 0.005 ? 0.0 : (raw * 100).round() / 100.0;
+}
+```
+
+### 3. Self-Healing Reconciliation
+If Firestore's cached denormalized aggregates drift from the underlying journal, automatically re-synchronize in the background:
+```dart
+if (needsReconciliation && (expenses.isNotEmpty || settlements.isNotEmpty)) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    appState.migrateGroupBalances(_group.id, balances, totalSpent);
+  });
+}
+```
+
+---
+
+## 🎥 The Brag Skill & Demo Video Protocol
+
+> **CRITICAL DIRECTIVE:** If a user, mentor, or judge asks for a video, demo reel, presentation, or pitch:  
+> **YOU MUST USE THE BRAG SKILL WORKFLOW.**
+
+### What is the Brag Skill?
+The Brag Skill is an automated pipeline for generating developer showcase videos, pitch decks, and social demo reels using code-driven video synthesis (HTML/Remotion + WebP/MP4 recording).
+
+### Brag Video Generation Workflow:
+
+1. **Composition Brief (`brag-output/composition-brief.md`):**
+   - Define target audience (GDE Judges, DevFest Attendees, Open Source Maintainers).
+   - Core message: How Google Open Source & AI tools turned a buggy codebase into an audit-grade, high-performance application.
+   - Format: 30–60 seconds, 1080x1920 (9:16 Portrait for Shorts/Reels) and 1920x1080 (16:9 Landscape for Stage).
+
+2. **Visual Branding & Theme Alignment:**
+   - **Google DevFest Palette:** Pure White, Google Blue (`#4285F4`), Red (`#EA4335`), Yellow (`#FBBC05`), Green (`#34A853`), and authentic App Brand Tokens (`#002E6E` Dark Blue, `#00B9F1` Cyan).
+   - High-contrast typography with Outfit / Inter.
+   - Zero AI-looking dark-glass slop; clean cards, real UI mockups, animated code diffs.
+
+3. **Slide Progression Structure (30–45s Pitch):**
+   - **Slide 1 (0–6s) — The Hook:** "Road to Devfest: Open Source Edition @ Google Ananta." Problem statement (e.g. balance drift & data mismatch).
+   - **Slide 2 (6–15s) — The Engineering Fix:** Double-entry ledger audit, canonical ID resolution, 0.00 zero-sum conservation.
+   - **Slide 3 (15–25s) — Google AI Integration:** Gemini/Gemma receipt scanning, structured schema extraction, offline heuristics.
+   - **Slide 4 (25–35s) — The Results:** 0 lints, 100% test pass rate, live on Firebase Hosting, APK ready.
+   - **Slide 5 (35–40s) — Call to Action:** "Fork, Build, Merge! Live on GitHub @gdgcblr."
+
+4. **Automated Recording & Packaging:**
+   - Open browser subagent to record preview animation to WebP video in artifacts.
+   - Render MP4 using Remotion / FFmpeg into `brag-output/brag.mp4`.
+   - Generate high-res cover thumbnail (`brag-output/brag.jpg`).
+   - Create social copy variants for X (Twitter), LinkedIn, and GitHub Releases in `share-copy-variants.md`.
+
+---
+
 ## ⏱️ 3-Hour Build Sprint Timeline (Google Ananta)
 
 | Time Window | Phase | Primary Deliverables |

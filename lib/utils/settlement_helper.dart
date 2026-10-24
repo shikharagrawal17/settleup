@@ -105,24 +105,41 @@ String _cleanPhoneDigits(String raw) {
   return digits;
 }
 
-/// Resolves any member identifier (m.id, m.uid, or phone number)
-/// to the single canonical GroupMember.id within the group.
-String resolveCanonicalMemberId(String rawId, List<GroupMember> members) {
-  if (rawId.isEmpty) return rawId;
+/// Builds an O(1) canonical member resolution index for high-speed lookups.
+Map<String, String> buildCanonicalMemberIndex(List<GroupMember> members) {
+  final index = <String, String>{};
   for (final m in members) {
-    if (m.id == rawId) return m.id;
-  }
-  for (final m in members) {
-    if (m.uid != null && m.uid == rawId) return m.id;
-  }
-  final cleanRaw = _cleanPhoneDigits(rawId);
-  if (cleanRaw.isNotEmpty) {
-    for (final m in members) {
-      if (m.phoneNumber != null && _cleanPhoneDigits(m.phoneNumber!) == cleanRaw) {
-        return m.id;
+    index[m.id] = m.id;
+    if (m.uid != null && m.uid!.isNotEmpty) {
+      index[m.uid!] = m.id;
+    }
+    if (m.phoneNumber != null && m.phoneNumber!.isNotEmpty) {
+      final clean = _cleanPhoneDigits(m.phoneNumber!);
+      if (clean.isNotEmpty) {
+        index[clean] = m.id;
+        final rawDigits = m.phoneNumber!.replaceAll(RegExp(r'\D'), '');
+        if (rawDigits.isNotEmpty) {
+          index[rawDigits] = m.id;
+          if (rawDigits.length >= 10) {
+            index[rawDigits.substring(rawDigits.length - 10)] = m.id;
+          }
+        }
       }
     }
   }
+  return index;
+}
+
+/// Resolves any member identifier (m.id, m.uid, or phone number)
+/// to the single canonical GroupMember.id within the group.
+String resolveCanonicalMemberId(String rawId, List<GroupMember> members, [Map<String, String>? index]) {
+  if (rawId.isEmpty) return rawId;
+  final lookup = index ?? buildCanonicalMemberIndex(members);
+  final direct = lookup[rawId];
+  if (direct != null) return direct;
+  final cleanRaw = _cleanPhoneDigits(rawId);
+  final phoneMatch = lookup[cleanRaw];
+  if (phoneMatch != null) return phoneMatch;
   return rawId;
 }
 
@@ -133,13 +150,14 @@ Map<String, double> computeMemberBalances({
   required List<Expense> expenses,
   required List<SettlementRecord> settlements,
 }) {
+  final canonIndex = buildCanonicalMemberIndex(members);
   final balances = <String, double>{};
   for (final m in members) {
     balances[m.id] = 0.0;
   }
 
   // Expenses: payer credited, each share debited.
-  // All member identifiers are mapped to their canonical GroupMember.id.
+  // All member identifiers are mapped via O(1) canonical lookup.
   for (final expense in expenses) {
     final scale = (expense.baseAmount != null && expense.amount > 0) 
         ? (expense.baseAmount! / expense.amount) 
@@ -147,11 +165,11 @@ Map<String, double> computeMemberBalances({
         
     final effectiveAmount = expense.baseAmount ?? expense.amount;
 
-    final canonPayerId = resolveCanonicalMemberId(expense.payerId, members);
+    final canonPayerId = resolveCanonicalMemberId(expense.payerId, members, canonIndex);
     balances[canonPayerId] = (balances[canonPayerId] ?? 0.0) + effectiveAmount;
 
     for (final entry in expense.shares.entries) {
-      final canonShareId = resolveCanonicalMemberId(entry.key, members);
+      final canonShareId = resolveCanonicalMemberId(entry.key, members, canonIndex);
       balances[canonShareId] = (balances[canonShareId] ?? 0.0) - (entry.value * scale);
     }
   }
@@ -159,10 +177,20 @@ Map<String, double> computeMemberBalances({
   // Settlements: payer (from) balance goes up, payee (to) balance goes down.
   for (final s in settlements) {
     if (s.status == SettlementStatus.confirmed) {
-      final canonFromId = resolveCanonicalMemberId(s.fromMemberId, members);
-      final canonToId = resolveCanonicalMemberId(s.toMemberId, members);
+      final canonFromId = resolveCanonicalMemberId(s.fromMemberId, members, canonIndex);
+      final canonToId = resolveCanonicalMemberId(s.toMemberId, members, canonIndex);
       balances[canonFromId] = (balances[canonFromId] ?? 0.0) + s.amount;
       balances[canonToId] = (balances[canonToId] ?? 0.0) - s.amount;
+    }
+  }
+
+  // Precision Guardrail: Clean floating point noise (-0.0 -> 0.0, 0.0000000001 -> 0.0)
+  for (final key in balances.keys.toList()) {
+    final raw = balances[key]!;
+    if (raw.abs() < 0.005) {
+      balances[key] = 0.0;
+    } else {
+      balances[key] = (raw * 100).round() / 100.0;
     }
   }
 
